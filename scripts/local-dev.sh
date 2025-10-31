@@ -97,7 +97,7 @@ build_docker() {
     print_header "Build Docker Locale"
     
     print_status "Building immagine Docker..."
-    docker build -t chatbot:latest .
+    sudo docker build -t chatbot:latest .
     
     print_status "Immagine Docker creata: chatbot:latest"
 }
@@ -107,7 +107,7 @@ run_docker() {
     print_header "Avvio con Docker Compose"
     
     print_status "Avviando con docker-compose..."
-    docker-compose -f docker-compose.dev.yml up --build
+    sudo docker-compose -f docker-compose.dev.yml up --build
 }
 
 # Funzione per mostrare l'aiuto

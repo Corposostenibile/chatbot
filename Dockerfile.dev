@@ -13,16 +13,23 @@ RUN pip install poetry && apt-get update && apt-get install -y curl && rm -rf /v
 # Configura Poetry
 ENV POETRY_VENV_IN_PROJECT=1 \
     POETRY_NO_INTERACTION=1 \
-    POETRY_CACHE_DIR=/tmp/poetry_cache
+    POETRY_CACHE_DIR=/opt/poetry_cache
 
 # Imposta la directory di lavoro
 WORKDIR /app
 
-# Copia i file di configurazione Poetry
-COPY pyproject.toml poetry.lock* ./
+# Copia i file di configurazione Poetry e README
+COPY pyproject.toml poetry.lock* README.md ./
+
+# Copia la cartella app (necessaria per Poetry)
+COPY app/ ./app/
 
 # Installa tutte le dipendenze (incluse quelle di sviluppo)
-RUN poetry install && rm -rf $POETRY_CACHE_DIR
+RUN poetry install
+
+# Trova dinamicamente il path dell'ambiente virtuale e crea un symlink
+RUN VENV_PATH=$(poetry env info --path) && \
+    ln -sf "$VENV_PATH" /app/.venv
 
 # Imposta il PATH per usare l'ambiente virtuale
 ENV PATH="/app/.venv/bin:$PATH"
@@ -30,5 +37,5 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Esponi la porta
 EXPOSE 8080
 
-# Comando di default (può essere sovrascritto in docker-compose)
+# Comando per avviare l'applicazione
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]

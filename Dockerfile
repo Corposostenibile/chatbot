@@ -19,8 +19,8 @@ ENV POETRY_VENV_IN_PROJECT=1 \
 # Imposta la directory di lavoro
 WORKDIR /app
 
-# Copia i file di configurazione Poetry
-COPY pyproject.toml poetry.lock* ./
+# Copia i file di configurazione Poetry e README
+COPY pyproject.toml poetry.lock* README.md ./
 
 # Installa le dipendenze
 RUN poetry install --only=main && rm -rf $POETRY_CACHE_DIR
