@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  chatbot-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+      - HOST=0.0.0.0
+      - PORT=8080
+    volumes:
+      # Mount completo per hot reload
+      - .:/app
+      - /app/.venv  # Esclude il virtual environment
+    command: ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    restart: unless-stopped
+    stdin_open: true
+    tty: true

@@ -1,0 +1,34 @@
+# Dockerfile per sviluppo con hot reload
+FROM python:3.11-slim
+
+# Imposta variabili d'ambiente per Python
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Installa Poetry e curl per health checks
+RUN pip install poetry && apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Configura Poetry
+ENV POETRY_VENV_IN_PROJECT=1 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_CACHE_DIR=/tmp/poetry_cache
+
+# Imposta la directory di lavoro
+WORKDIR /app
+
+# Copia i file di configurazione Poetry
+COPY pyproject.toml poetry.lock* ./
+
+# Installa tutte le dipendenze (incluse quelle di sviluppo)
+RUN poetry install && rm -rf $POETRY_CACHE_DIR
+
+# Imposta il PATH per usare l'ambiente virtuale
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Esponi la porta
+EXPOSE 8080
+
+# Comando di default (può essere sovrascritto in docker-compose)
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
