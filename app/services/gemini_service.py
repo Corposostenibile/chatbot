@@ -1,132 +1,161 @@
 """
-Servizio per l'integrazione con Gemini 2.5 Pro usando datapizza-ai
+Servizio per l'integrazione con Gemini tramite datapizza-ai
 """
-
-from typing import Optional, Dict, Any
+import asyncio
+from typing import Dict, Optional
 from loguru import logger
 
 from datapizza.clients.google import GoogleClient
 from datapizza.agents import Agent
 
+from app.models.lifecycle import LifecycleStage, LifecycleResponse
+from app.services.lifecycle_manager import lifecycle_manager
 from app.config import settings
 
 
 class GeminiService:
-    """Servizio per interagire con Gemini 2.5 Pro"""
+    """Servizio per l'integrazione con Gemini"""
     
     def __init__(self):
         """Inizializza il servizio Gemini"""
-        self.client: Optional[GoogleClient] = None
-        self.agent: Optional[Agent] = None
-        self._initialize_client()
-    
-    def _initialize_client(self) -> None:
-        """Inizializza il client Gemini"""
         try:
+            # Verifica che l'API key sia configurata
             if not settings.google_ai_api_key:
-                logger.warning("Google AI API key non configurata (GOOGLE_AI_API_KEY)")
-                return
+                raise ValueError("GOOGLE_AI_API_KEY non configurata nel file .env")
             
-            # Inizializza il client Google con datapizza-ai
+            # Inizializza il client Google direttamente con i parametri
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
-                model="gemini-2.5-pro"  # Usa il modello più recente disponibile
+                model="gemini-2.5-flash",
+                temperature=0.7,
+                system_prompt="Sei un assistente AI utile e professionale."
             )
             
-            # Crea un agent con il client
+            # Inizializza l'agent
             self.agent = Agent(
-                name="gemini_assistant",
-                client=self.client
+                client=self.client,
+                name="ChatbotAgent"
             )
             
-            logger.info("Client Gemini inizializzato correttamente")
+            logger.info("GeminiService inizializzato con successo")
             
         except Exception as e:
-            logger.error(f"Errore nell'inizializzazione del client Gemini: {e}")
-            self.client = None
-            self.agent = None
-    
-    async def chat(self, message: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            logger.error(f"Errore nell'inizializzazione di GeminiService: {e}")
+            raise
+
+    async def chat(self, session_id: str, user_message: str) -> LifecycleResponse:
         """
-        Invia un messaggio a Gemini e restituisce la risposta
+        Gestisce una conversazione con Gemini e il lifecycle management
         
         Args:
-            message: Il messaggio da inviare
-            context: Contesto opzionale per la conversazione
+            session_id: ID della sessione di chat
+            user_message: Messaggio dell'utente
             
         Returns:
-            Dict contenente la risposta e metadati
+            LifecycleResponse con la risposta e informazioni sul lifecycle
         """
         try:
-            if not self.agent:
-                return {
-                    "success": False,
-                    "error": "Client Gemini non inizializzato. Verificare la configurazione API key.",
-                    "response": None
-                }
+            # Ottieni o crea la sessione
+            session = lifecycle_manager.get_or_create_session(session_id)
             
-            # Prepara il prompt con eventuale contesto
-            prompt = message
-            if context:
-                context_str = "\n".join([f"{k}: {v}" for k, v in context.items()])
-                prompt = f"Contesto:\n{context_str}\n\nDomanda: {message}"
+            # Genera il prompt di sistema per il lifecycle corrente
+            system_prompt = lifecycle_manager.get_system_prompt(session.current_lifecycle)
             
-            logger.info(f"Invio messaggio a Gemini: {message[:100]}...")
+            # Costruisci il contesto della conversazione
+            conversation_context = self._build_conversation_context(session)
             
-            # Invia il messaggio usando l'agent
-            response = self.agent.run(prompt)
+            # Costruisci il prompt completo
+            full_prompt = f"""{system_prompt}
+
+CRONOLOGIA CONVERSAZIONE:
+{conversation_context}
+
+MESSAGGIO UTENTE: {user_message}
+
+RISPOSTA ASSISTENTE:"""
+
+            # Invia il messaggio a Gemini
+            logger.info(f"Invio messaggio a Gemini per sessione {session_id}")
+            try:
+                gemini_result = await self.agent.a_run(full_prompt)
+                gemini_response = gemini_result.text  # Estrai il testo dalla risposta
+                logger.info(f"Risposta Gemini ricevuta per sessione {session_id}")
+            except Exception as gemini_error:
+                logger.error(f"Errore specifico con Gemini agent: {gemini_error}")
+                raise gemini_error
             
-            logger.info("Risposta ricevuta da Gemini")
+            # Processa la risposta attraverso il lifecycle manager
+            try:
+                lifecycle_response = await lifecycle_manager.get_lifecycle_response(
+                    session_id=session_id,
+                    user_message=user_message,
+                    ai_response=gemini_response,
+                    ai_client=self.agent  # Passa l'agent per l'analisi dinamica
+                )
+                logger.info(f"Lifecycle response processata per sessione {session_id}")
+            except Exception as lifecycle_error:
+                logger.error(f"Errore specifico nel lifecycle manager: {lifecycle_error}")
+                raise lifecycle_error
             
-            return {
-                "success": True,
-                "response": response,
-                "model": "gemini-2.5-pro",
-                "error": None
-            }
+            logger.info(f"Risposta generata per sessione {session_id}, lifecycle: {lifecycle_response.current_lifecycle}")
+            
+            return lifecycle_response
             
         except Exception as e:
-            logger.error(f"Errore nella chiamata a Gemini: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "response": None
-            }
-    
-    def is_available(self) -> bool:
-        """Verifica se il servizio è disponibile"""
-        return self.client is not None and self.agent is not None
-    
-    async def health_check(self) -> Dict[str, Any]:
-        """Verifica lo stato del servizio"""
-        if not self.is_available():
-            return {
-                "status": "unhealthy",
-                "message": "Client Gemini non inizializzato",
-                "api_key_configured": bool(settings.gemini_api_key)
-            }
+            logger.error(f"Errore nel chat con Gemini: {e}")
+            # Risposta di fallback
+            return LifecycleResponse(
+                message="Mi dispiace, si è verificato un errore. Puoi riprovare?",
+                current_lifecycle=LifecycleStage.NUOVA_LEAD,
+                lifecycle_changed=False,
+                ai_reasoning="Errore nel servizio AI"
+            )
+
+    def _build_conversation_context(self, session) -> str:
+        """Costruisce il contesto della conversazione dalla cronologia"""
+        if not session.conversation_history:
+            return "Nessuna conversazione precedente."
         
+        context_lines = []
+        # Prendi solo gli ultimi 5 scambi per non sovraccaricare il prompt
+        recent_history = session.conversation_history[-5:]
+        
+        for i, exchange in enumerate(recent_history, 1):
+            context_lines.append(f"Scambio {i}:")
+            context_lines.append(f"Utente: {exchange['user']}")
+            context_lines.append(f"Assistente: {exchange['assistant']}")
+            if exchange.get('lifecycle_changed'):
+                context_lines.append(f"[Lifecycle cambiato a: {exchange['lifecycle']}]")
+            context_lines.append("")
+        
+        return "\n".join(context_lines)
+
+    def get_session_info(self, session_id: str) -> Optional[Dict]:
+        """Restituisce informazioni sulla sessione"""
+        return lifecycle_manager.get_session_info(session_id)
+
+    def is_available(self) -> bool:
+        """Controlla se il servizio è disponibile"""
         try:
-            # Test con un messaggio semplice
-            test_response = await self.chat("Ciao, questo è un test di connessione.")
+            return self.client is not None and self.agent is not None
+        except Exception:
+            return False
+
+    async def health_check(self) -> Dict[str, str]:
+        """Esegue un controllo di salute del servizio"""
+        try:
+            # Test semplice con Gemini
+            test_result = await self.agent.a_run("Rispondi solo con 'OK' se funzioni correttamente.")
+            test_response = test_result.text  # Estrai il testo dalla risposta
             
-            if test_response["success"]:
-                return {
-                    "status": "healthy",
-                    "message": "Servizio Gemini operativo",
-                    "model": "gemini-2.5-pro"
-                }
+            if "OK" in test_response.upper():
+                return {"status": "healthy", "message": "Servizio Gemini operativo"}
             else:
-                return {
-                    "status": "unhealthy",
-                    "message": f"Errore nel test: {test_response['error']}"
-                }
+                return {"status": "degraded", "message": "Risposta inaspettata da Gemini"}
                 
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "message": f"Errore nel health check: {str(e)}"
-            }
+            logger.error(f"Health check fallito: {e}")
+            return {"status": "unhealthy", "message": f"Errore: {str(e)}"}
 
 
 # Istanza globale del servizio
