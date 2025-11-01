@@ -4,7 +4,8 @@ Applicazione FastAPI principale per il Chatbot
 
 import os
 from contextlib import asynccontextmanager
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,8 @@ from loguru import logger
 from pydantic import BaseModel
 
 from .config import Settings, settings
+from .services.gemini_service import gemini_service
+from .models import LifecycleStage, ConversationContext, LifecycleTransition
 
 
 # Modelli Pydantic
@@ -20,6 +23,7 @@ class ChatMessage(BaseModel):
     """Modello per i messaggi del chat"""
     message: str
     user_id: str = "anonymous"
+    context: Optional[Dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):
@@ -100,25 +104,42 @@ async def chat_endpoint(
     config: Settings = Depends(get_settings)
 ):
     """
-    Endpoint principale per il chat
-    
-    Questo è un esempio base - qui puoi integrare il tuo modello AI
+    Endpoint principale per il chat con integrazione Gemini 2.5 Pro
     """
     try:
-        # Esempio di logica del chatbot (sostituisci con il tuo modello AI)
-        user_message = message.message.lower()
-        
-        if "ciao" in user_message or "hello" in user_message:
-            bot_response = f"Ciao! Come posso aiutarti oggi?"
-        elif "come stai" in user_message:
-            bot_response = "Sto bene, grazie! Sono qui per aiutarti."
-        elif "aiuto" in user_message or "help" in user_message:
-            bot_response = "Sono un chatbot di esempio. Puoi farmi domande e cercherò di rispondere!"
+        # Verifica se il servizio Gemini è disponibile
+        if not gemini_service.is_available():
+            logger.warning("Servizio Gemini non disponibile, usando risposta di fallback")
+            
+            # Fallback alla logica precedente se Gemini non è disponibile
+            user_message = message.message.lower()
+            
+            if "ciao" in user_message or "hello" in user_message:
+                bot_response = f"Ciao! Come posso aiutarti oggi? (Nota: Gemini non è configurato)"
+            elif "come stai" in user_message:
+                bot_response = "Sto bene, grazie! Sono qui per aiutarti. (Nota: Gemini non è configurato)"
+            elif "aiuto" in user_message or "help" in user_message:
+                bot_response = "Sono un chatbot. Configura Gemini API key per funzionalità avanzate!"
+            else:
+                bot_response = f"Hai detto: '{message.message}'. Configura GEMINI_API_KEY per risposte AI!"
         else:
-            bot_response = f"Hai detto: '{message.message}'. Questa è una risposta di esempio!"
+            # Usa il servizio Gemini per generare la risposta
+            logger.info(f"Invio messaggio a Gemini da utente {message.user_id}")
+            
+            gemini_response = await gemini_service.chat(
+                message=message.message,
+                context=message.context
+            )
+            
+            if gemini_response["success"]:
+                bot_response = gemini_response["response"]
+                logger.info("Risposta ricevuta da Gemini con successo")
+            else:
+                logger.error(f"Errore da Gemini: {gemini_response['error']}")
+                bot_response = f"Mi dispiace, ho riscontrato un errore: {gemini_response['error']}"
         
         # Log del messaggio (utile per debugging)
-        logger.info(f"Messaggio da {message.user_id}: {message.message}")
+        logger.info(f"Messaggio da {message.user_id}: {message.message[:100]}...")
         
         from datetime import datetime
         return ChatResponse(
@@ -142,6 +163,85 @@ async def status():
         "environment": "development" if settings.debug else "production",
         "port": settings.port
     }
+
+
+@app.get("/gemini/health")
+async def gemini_health_check():
+    """Endpoint per verificare lo stato del servizio Gemini"""
+    try:
+        health_status = gemini_service.health_check()
+        return health_status
+    except Exception as e:
+        logger.error(f"Errore nel health check di Gemini: {str(e)}")
+        return {
+            "status": "error",
+            "message": f"Errore nel controllo: {str(e)}"
+        }
+
+
+@app.post("/chat/lifecycle")
+async def chat_with_lifecycle(
+    message: ChatMessage,
+    config: Settings = Depends(get_settings)
+):
+    """Endpoint per chat con gestione dei lifecycle"""
+    try:
+        logger.info(f"Messaggio ricevuto con lifecycle da {message.user_id}: {message.message}")
+        
+        # Usa il servizio Gemini con gestione lifecycle
+        response = await gemini_service.chat_with_lifecycle(
+            user_id=message.user_id,
+            message=message.message, 
+            context=message.context or {}
+        )
+        
+        logger.info(f"Risposta generata per {message.user_id}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Errore nel chat con lifecycle: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
+
+
+@app.get("/lifecycle/stats/{user_id}")
+async def get_lifecycle_stats(user_id: str):
+    """Ottieni le statistiche del lifecycle per un utente"""
+    try:
+        stats = gemini_service.get_lifecycle_stats(user_id)
+        return stats
+    except Exception as e:
+        logger.error(f"Errore nel recupero statistiche lifecycle: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
+
+
+@app.get("/lifecycle/current/{user_id}")
+async def get_current_lifecycle(user_id: str):
+    """Ottieni il lifecycle corrente per un utente"""
+    try:
+        current_lifecycle = gemini_service.get_current_lifecycle(user_id)
+        return {
+            "user_id": user_id,
+            "current_lifecycle": current_lifecycle,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Errore nel recupero lifecycle corrente: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
+
+
+@app.post("/lifecycle/reset/{user_id}")
+async def reset_user_lifecycle(user_id: str):
+    """Reset del lifecycle per un utente"""
+    try:
+        success = gemini_service.reset_user_context(user_id)
+        return {
+            "status": "success" if success else "not_found",
+            "message": f"Lifecycle resettato per l'utente {user_id}" if success else f"Utente {user_id} non trovato",
+            "user_id": user_id
+        }
+    except Exception as e:
+        logger.error(f"Errore nel reset lifecycle: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
 
 
 # Handler per errori globali

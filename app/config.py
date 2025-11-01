@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # API Keys
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    google_ai_api_key: Optional[str] = None
     
     model_config = {"env_file": ".env"}
 
