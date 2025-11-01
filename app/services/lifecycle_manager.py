@@ -6,9 +6,6 @@ import time
 from typing import Dict, Optional, Tuple, List
 from loguru import logger
 
-from datapizza.clients.google import GoogleClient
-from datapizza.agents import Agent
-
 from app.models.lifecycle import (
     LifecycleStage, 
     ChatSession, 
@@ -21,36 +18,15 @@ from app.data.lifecycle_config import (
     LIFECYCLE_SCRIPTS,
     LIFECYCLE_DECISION_PROMPT
 )
-from app.config import settings
 
 
 class LifecycleManager:
     """Gestisce i lifecycle delle conversazioni del chatbot"""
     
     def __init__(self):
-        """Inizializza il LifecycleManager con le sessioni e un client AI separato"""
+        """Inizializza il LifecycleManager con le sessioni"""
         self.sessions: Dict[str, ChatSession] = {}
-        
-        # Crea un client AI separato per il lifecycle manager
-        try:
-            self.lifecycle_client = GoogleClient(
-                api_key=settings.google_ai_api_key,
-                model="gemini-2.5-flash",
-                temperature=0.3,  # Temperatura più bassa per decisioni più consistenti
-                system_prompt="Sei un analista AI specializzato nell'analisi di transizioni di lifecycle per chatbot di vendita."
-            )
-            
-            self.lifecycle_agent = Agent(
-                client=self.lifecycle_client,
-                name="LifecycleAnalyzer"
-            )
-            
-            logger.info("LifecycleManager inizializzato con client AI separato")
-            
-        except Exception as e:
-            logger.error(f"Errore nell'inizializzazione del client AI per LifecycleManager: {e}")
-            self.lifecycle_client = None
-            self.lifecycle_agent = None
+        logger.info("LifecycleManager inizializzato")
 
     def get_or_create_session(self, session_id: str) -> ChatSession:
         """Ottiene o crea una nuova sessione"""
@@ -100,9 +76,9 @@ ISTRUZIONI SPECIFICHE:
                 reasoning="Lifecycle finale raggiunto"
             )
         
-        # Usa il client AI separato se disponibile, altrimenti fallback
-        if self.lifecycle_agent is None:
-            logger.warning("Client AI per lifecycle non disponibile, uso fallback")
+        # Se non abbiamo un client AI, usa il fallback
+        if ai_client is None:
+            logger.warning("Client AI non fornito, uso fallback")
             return self._fallback_analysis(current_stage, user_message)
         
         # Prepara il prompt per l'analisi
@@ -115,10 +91,10 @@ ISTRUZIONI SPECIFICHE:
         )
         
         try:
-            # Usa il client AI separato con 'a_stream_invoke'
-            logger.info(f"Usando client AI separato per l'analisi del lifecycle")
+            # Usa il client AI fornito con 'a_stream_invoke'
+            logger.info(f"Usando client AI fornito per l'analisi del lifecycle")
             full_response = ""
-            async for chunk in self.lifecycle_agent.a_stream_invoke(decision_prompt):
+            async for chunk in ai_client.a_stream_invoke(decision_prompt):
                 if hasattr(chunk, 'text') and chunk.text:
                     full_response += chunk.text
             
