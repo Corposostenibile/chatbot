@@ -5,7 +5,6 @@ Applicazione FastAPI principale per il Chatbot
 import os
 from contextlib import asynccontextmanager
 from typing import Dict, Any, Optional
-from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +14,6 @@ from pydantic import BaseModel
 
 from .config import Settings, settings
 from .services.gemini_service import gemini_service
-from .models import LifecycleStage, ConversationContext, LifecycleTransition
 
 
 # Modelli Pydantic
@@ -169,7 +167,7 @@ async def status():
 async def gemini_health_check():
     """Endpoint per verificare lo stato del servizio Gemini"""
     try:
-        health_status = gemini_service.health_check()
+        health_status = await gemini_service.health_check()
         return health_status
     except Exception as e:
         logger.error(f"Errore nel health check di Gemini: {str(e)}")
@@ -177,71 +175,6 @@ async def gemini_health_check():
             "status": "error",
             "message": f"Errore nel controllo: {str(e)}"
         }
-
-
-@app.post("/chat/lifecycle")
-async def chat_with_lifecycle(
-    message: ChatMessage,
-    config: Settings = Depends(get_settings)
-):
-    """Endpoint per chat con gestione dei lifecycle"""
-    try:
-        logger.info(f"Messaggio ricevuto con lifecycle da {message.user_id}: {message.message}")
-        
-        # Usa il servizio Gemini con gestione lifecycle
-        response = await gemini_service.chat_with_lifecycle(
-            user_id=message.user_id,
-            message=message.message, 
-            context=message.context or {}
-        )
-        
-        logger.info(f"Risposta generata per {message.user_id}")
-        return response
-        
-    except Exception as e:
-        logger.error(f"Errore nel chat con lifecycle: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-
-
-@app.get("/lifecycle/stats/{user_id}")
-async def get_lifecycle_stats(user_id: str):
-    """Ottieni le statistiche del lifecycle per un utente"""
-    try:
-        stats = gemini_service.get_lifecycle_stats(user_id)
-        return stats
-    except Exception as e:
-        logger.error(f"Errore nel recupero statistiche lifecycle: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-
-
-@app.get("/lifecycle/current/{user_id}")
-async def get_current_lifecycle(user_id: str):
-    """Ottieni il lifecycle corrente per un utente"""
-    try:
-        current_lifecycle = gemini_service.get_current_lifecycle(user_id)
-        return {
-            "user_id": user_id,
-            "current_lifecycle": current_lifecycle,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        logger.error(f"Errore nel recupero lifecycle corrente: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
-
-
-@app.post("/lifecycle/reset/{user_id}")
-async def reset_user_lifecycle(user_id: str):
-    """Reset del lifecycle per un utente"""
-    try:
-        success = gemini_service.reset_user_context(user_id)
-        return {
-            "status": "success" if success else "not_found",
-            "message": f"Lifecycle resettato per l'utente {user_id}" if success else f"Utente {user_id} non trovato",
-            "user_id": user_id
-        }
-    except Exception as e:
-        logger.error(f"Errore nel reset lifecycle: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
 
 
 # Handler per errori globali
