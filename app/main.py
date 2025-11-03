@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from .config import Settings, settings
 from app.models.lifecycle import LifecycleResponse
-from .services.gemini_service import gemini_service
+from .services.unified_agent import unified_agent
 
 
 # Modelli Pydantic
@@ -56,10 +56,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Debug mode: {settings.debug}")
     
     # Verifica la disponibilità dei servizi
-    if gemini_service.is_available():
-        logger.info("✅ Servizio Gemini disponibile")
+    if unified_agent.is_available():
+        logger.info("✅ Agente unificato disponibile")
     else:
-        logger.warning("⚠️ Servizio Gemini non disponibile")
+        logger.warning("⚠️ Agente unificato non disponibile")
     
     yield
     
@@ -116,57 +116,27 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(chat_message: ChatMessage):
     """
-    Endpoint per la chat con gestione dinamica dei lifecycle
+    Endpoint per la chat con agente unificato che gestisce conversazione e lifecycle
     """
     try:
         logger.info(f"Messaggio ricevuto da sessione {chat_message.session_id}: {chat_message.message}")
         
-        # Usa il servizio Gemini con il nuovo sistema dinamico
-        if gemini_service.is_available():
-            try:
-                lifecycle_response = await gemini_service.chat(
-                    session_id=chat_message.session_id,
-                    user_message=chat_message.message
-                )
-                
-                logger.info(f"Risposta Gemini per sessione {chat_message.session_id}: {lifecycle_response.message[:100]}...")
-                
-                return ChatResponse(
-                    response=lifecycle_response.message,
-                    session_id=chat_message.session_id,
-                    current_lifecycle=lifecycle_response.current_lifecycle.value,
-                    lifecycle_changed=lifecycle_response.lifecycle_changed,
-                    previous_lifecycle=lifecycle_response.previous_lifecycle.value if lifecycle_response.previous_lifecycle else None,
-                    next_actions=lifecycle_response.next_actions,
-                    ai_reasoning=lifecycle_response.ai_reasoning,
-                    timestamp=str(int(time.time()))
-                )
-                
-            except Exception as e:
-                logger.error(f"Errore con Gemini per sessione {chat_message.session_id}: {e}")
-                # Fallback al chatbot semplice
+        # Usa l'agente unificato
+        lifecycle_response = await unified_agent.chat(
+            session_id=chat_message.session_id,
+            user_message=chat_message.message
+        )
         
-        # Fallback: chatbot semplice senza lifecycle
-        logger.info(f"Usando fallback per sessione {chat_message.session_id}")
-        
-        # Logica di fallback semplice
-        fallback_responses = [
-            "Ciao! Sono qui per aiutarti con il tuo percorso di benessere. Come posso supportarti oggi?",
-            "Capisco la tua situazione. Parlami di più di quello che stai vivendo.",
-            "È normale sentirsi così. Il nostro approccio integrato di nutrizione e psicologia può davvero aiutarti.",
-            "Perfetto! Ti piacerebbe saperne di più sulla nostra consulenza gratuita?"
-        ]
-        
-        import random
-        fallback_response = random.choice(fallback_responses)
+        logger.info(f"Risposta agente unificato per sessione {chat_message.session_id}: {lifecycle_response.message[:100]}...")
         
         return ChatResponse(
-            response=fallback_response,
+            response=lifecycle_response.message,
             session_id=chat_message.session_id,
-            current_lifecycle="nuova_lead",
-            lifecycle_changed=False,
-            next_actions=["Raccogli informazioni sui problemi del cliente"],
-            ai_reasoning="Fallback: servizio AI non disponibile",
+            current_lifecycle=lifecycle_response.current_lifecycle.value,
+            lifecycle_changed=lifecycle_response.lifecycle_changed,
+            previous_lifecycle=lifecycle_response.previous_lifecycle.value if lifecycle_response.previous_lifecycle else None,
+            next_actions=lifecycle_response.next_actions,
+            ai_reasoning=lifecycle_response.ai_reasoning,
             timestamp=str(int(time.time()))
         )
         
@@ -178,7 +148,7 @@ async def chat_endpoint(chat_message: ChatMessage):
 @app.get("/status")
 async def status():
     """Endpoint per lo status dettagliato dell'applicazione"""
-    gemini_health = await gemini_service.health_check()
+    unified_agent_available = unified_agent.is_available()
     
     return {
         "app": {
@@ -187,7 +157,11 @@ async def status():
             "debug": settings.debug
         },
         "services": {
-            "gemini": gemini_health
+            "unified_agent": {
+                "status": "healthy" if unified_agent_available else "unhealthy",
+                "ai_client_available": unified_agent_available,
+                "active_sessions": len(unified_agent.sessions) if hasattr(unified_agent, 'sessions') else 0
+            }
         }
     }
 
@@ -196,7 +170,7 @@ async def status():
 async def get_session_info(session_id: str):
     """Endpoint per ottenere informazioni sulla sessione e lifecycle corrente"""
     try:
-        session_info = gemini_service.get_session_info(session_id)
+        session_info = unified_agent.get_session_info(session_id)
         
         if not session_info:
             raise HTTPException(status_code=404, detail="Sessione non trovata")
@@ -210,14 +184,23 @@ async def get_session_info(session_id: str):
         raise HTTPException(status_code=500, detail=f"Errore interno del server: {str(e)}")
 
 
-@app.get("/gemini/health")
-async def gemini_health_check():
-    """Endpoint per verificare lo stato del servizio Gemini"""
+@app.get("/unified/health")
+async def unified_agent_health_check():
+    """Endpoint per verificare lo stato dell'agente unificato"""
     try:
-        health_status = await gemini_service.health_check()
-        return health_status
+        is_available = unified_agent.is_available()
+        
+        return {
+            "status": "healthy" if is_available else "unhealthy",
+            "service": "unified_agent",
+            "timestamp": datetime.now().isoformat(),
+            "details": {
+                "ai_client_available": is_available,
+                "active_sessions": len(unified_agent.sessions) if hasattr(unified_agent, 'sessions') else 0
+            }
+        }
     except Exception as e:
-        logger.error(f"Errore nel health check di Gemini: {str(e)}")
+        logger.error(f"Errore nel health check dell'agente unificato: {str(e)}")
         return {
             "status": "error",
             "message": f"Errore nel controllo: {str(e)}"
