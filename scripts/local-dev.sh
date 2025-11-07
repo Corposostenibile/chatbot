@@ -164,24 +164,6 @@ format_code() {
     poetry run flake8 app/ tests/
 }
 
-# Funzione per build Docker locale
-build_docker() {
-    print_header "Build Docker Locale"
-    
-    print_status "Building immagine Docker..."
-    sudo docker build -t chatbot:latest .
-    
-    print_status "Immagine Docker creata: chatbot:latest"
-}
-
-# Funzione per avviare con Docker Compose
-run_docker() {
-    print_header "Avvio con Docker Compose"
-    
-    print_status "Avviando con docker-compose..."
-    sudo docker-compose -f docker-compose.dev.yml up --build
-}
-
 # Funzione per mostrare l'aiuto
 show_help() {
     echo "Script per lo sviluppo locale del Chatbot"
@@ -195,8 +177,6 @@ show_help() {
     echo "  test-db   - Test connessione database"
     echo "  test-lifecycle - Test flusso completo lifecycle"
     echo "  format    - Formatta il codice"
-    echo "  build     - Build dell'immagine Docker"
-    echo "  docker    - Avvia con Docker Compose"
     echo "  db-stop   - Ferma il database PostgreSQL"
     echo "  help      - Mostra questo aiuto"
     echo ""
@@ -227,12 +207,6 @@ case "${1:-help}" in
         ;;
     format)
         format_code
-        ;;
-    build)
-        build_docker
-        ;;
-    docker)
-        run_docker
         ;;
     db-stop)
         stop_db
