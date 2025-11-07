@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from .config import Settings, settings
 from app.models.lifecycle import LifecycleResponse
 from .services.unified_agent import unified_agent
+from .database import engine, Base
 
 
 # Modelli Pydantic
@@ -55,8 +56,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Versione: {settings.app_version}")
     logger.info(f"Debug mode: {settings.debug}")
     
+    # Crea le tabelle del database
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("✅ Tabelle del database create")
+    
     # Verifica la disponibilità dei servizi
-    if unified_agent.is_available():
+    if await unified_agent.is_available():
         logger.info("✅ Agente unificato disponibile")
     else:
         logger.warning("⚠️ Agente unificato non disponibile")
@@ -148,7 +154,16 @@ async def chat_endpoint(chat_message: ChatMessage):
 @app.get("/status")
 async def status():
     """Endpoint per lo status dettagliato dell'applicazione"""
-    unified_agent_available = unified_agent.is_available()
+    from sqlalchemy import func
+    from app.models.database_models import SessionModel
+    
+    async for db in get_db():
+        result = await db.execute(
+            func.count(SessionModel.id)
+        )
+        active_sessions = result.scalar()
+    
+    unified_agent_available = await unified_agent.is_available()
     
     return {
         "app": {
@@ -160,7 +175,7 @@ async def status():
             "unified_agent": {
                 "status": "healthy" if unified_agent_available else "unhealthy",
                 "ai_client_available": unified_agent_available,
-                "active_sessions": len(unified_agent.sessions) if hasattr(unified_agent, 'sessions') else 0
+                "active_sessions": active_sessions
             }
         }
     }
@@ -188,7 +203,16 @@ async def get_session_info(session_id: str):
 async def unified_agent_health_check():
     """Endpoint per verificare lo stato dell'agente unificato"""
     try:
-        is_available = unified_agent.is_available()
+        is_available = await unified_agent.is_available()
+        
+        from sqlalchemy import func
+        from app.models.database_models import SessionModel
+        
+        async for db in get_db():
+            result = await db.execute(
+                func.count(SessionModel.id)
+            )
+            active_sessions = result.scalar()
         
         return {
             "status": "healthy" if is_available else "unhealthy",
@@ -196,7 +220,7 @@ async def unified_agent_health_check():
             "timestamp": datetime.now().isoformat(),
             "details": {
                 "ai_client_available": is_available,
-                "active_sessions": len(unified_agent.sessions) if hasattr(unified_agent, 'sessions') else 0
+                "active_sessions": active_sessions
             }
         }
     except Exception as e:

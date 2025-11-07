@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     google_ai_api_key: Optional[str] = None
     
+    # Database
+    database_url: str = "postgresql+asyncpg://user:password@localhost/chatbot"
+    
     model_config = {"env_file": ".env"}
 
 

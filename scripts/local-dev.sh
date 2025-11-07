@@ -62,8 +62,27 @@ run_dev() {
     
     check_poetry
     
+    # Avvia il database con Docker se non è già attivo
+    if ! docker-compose -f docker-compose.dev.yml ps postgres | grep -q "Up"; then
+        print_status "Avviando database PostgreSQL con Docker..."
+        docker-compose -f docker-compose.dev.yml up -d postgres
+        sleep 3  # Aspetta che il DB sia pronto
+    else
+        print_status "Database PostgreSQL già attivo"
+    fi
+    
     print_status "Avviando il server di sviluppo..."
     poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+}
+
+# Funzione per fermare il database
+stop_db() {
+    print_header "Fermando Database"
+    
+    print_status "Fermando PostgreSQL..."
+    docker-compose -f docker-compose.dev.yml down
+    
+    print_status "Database fermato"
 }
 
 # Funzione per eseguire i test
@@ -118,16 +137,17 @@ show_help() {
     echo ""
     echo "Comandi disponibili:"
     echo "  setup     - Configura l'ambiente di sviluppo"
-    echo "  dev       - Avvia l'applicazione in modalità sviluppo"
+    echo "  dev       - Avvia l'applicazione in modalità sviluppo (con DB)"
     echo "  test      - Esegue i test"
     echo "  format    - Formatta il codice"
     echo "  build     - Build dell'immagine Docker"
     echo "  docker    - Avvia con Docker Compose"
+    echo "  db-stop   - Ferma il database PostgreSQL"
     echo "  help      - Mostra questo aiuto"
     echo ""
     echo "Esempi:"
     echo "  $0 setup    # Prima configurazione"
-    echo "  $0 dev      # Sviluppo locale"
+    echo "  $0 dev      # Sviluppo locale con DB"
     echo "  $0 test     # Esegui test"
 }
 
@@ -150,6 +170,9 @@ case "${1:-help}" in
         ;;
     docker)
         run_docker
+        ;;
+    db-stop)
+        stop_db
         ;;
     help|*)
         show_help

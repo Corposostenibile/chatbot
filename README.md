@@ -66,20 +66,23 @@ poetry install
 cp .env.example .env
 
 # 3. Modifica le variabili in .env secondo le tue necessità
+# Nota: DATABASE_URL è già configurato per PostgreSQL locale con Docker
 ```
 
 ### Avvio Sviluppo
 
 ```bash
-# Metodo 1: Con script di utilità
+# Metodo 1: Con script di utilità (raccomandato - avvia automaticamente DB)
 ./scripts/local-dev.sh dev
 
-# Metodo 2: Direttamente con Poetry
+# Metodo 2: Direttamente con Poetry (assicurati che PostgreSQL sia attivo)
 poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 
-# Metodo 3: Con Docker Compose (hot reload)
-docker-compose -f docker-compose.dev.yml up --build
+# Metodo 3: Con Docker Compose (solo per produzione/test)
+docker-compose up --build
 ```
+
+**Nota**: Lo script `local-dev.sh dev` avvia automaticamente PostgreSQL con Docker e poi l'app con Poetry.
 
 L'applicazione sarà disponibile su:
 - **API**: http://localhost:8080
@@ -105,6 +108,20 @@ poetry run flake8 app/ tests/
 ```
 
 ## 🐳 Docker
+
+### Database Locale
+Il progetto utilizza PostgreSQL come database. Per lo sviluppo locale:
+
+```bash
+# Avvia solo il database (automatico con ./scripts/local-dev.sh dev)
+docker-compose -f docker-compose.dev.yml up -d postgres
+
+# Ferma il database
+./scripts/local-dev.sh db-stop
+
+# Verifica stato database
+docker-compose -f docker-compose.dev.yml ps
+```
 
 ### Build Locale
 
@@ -197,12 +214,16 @@ PORT=8080
 # Security
 SECRET_KEY=your-secret-key-here
 
+# Database (già configurato per sviluppo locale)
+DATABASE_URL=postgresql+asyncpg://chatbot:password@localhost:5432/chatbot
+
 # Google Cloud
 GOOGLE_CLOUD_PROJECT=your-project-id
 
 # API Keys (aggiungi le tue)
 OPENAI_API_KEY=your-openai-key
 ANTHROPIC_API_KEY=your-anthropic-key
+GOOGLE_AI_API_KEY=your-google-ai-key
 ```
 
 ## 📚 API Endpoints
@@ -244,11 +265,12 @@ gcloud run services describe chatbot --region=europe-west1
 ### Workflow di Sviluppo
 
 1. **Setup**: `./scripts/local-dev.sh setup`
-2. **Sviluppo**: `./scripts/local-dev.sh dev`
+2. **Sviluppo**: `./scripts/local-dev.sh dev` (avvia DB + app)
 3. **Test**: `./scripts/local-dev.sh test`
 4. **Format**: `./scripts/local-dev.sh format`
 5. **Build**: `./scripts/local-dev.sh build`
-6. **Deploy**: `./scripts/deploy.sh`
+6. **Stop DB**: `./scripts/local-dev.sh db-stop`
+7. **Deploy**: `./scripts/deploy.sh`
 
 ### Aggiungere Nuove Funzionalità
 

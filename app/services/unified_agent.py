@@ -4,6 +4,7 @@ Agente unificato che gestisce conversazione e lifecycle management in un'unica c
 import json
 import time
 from typing import Dict, Optional, List
+from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from datapizza.clients.google import GoogleClient
@@ -16,6 +17,9 @@ from app.models.lifecycle import (
 )
 from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
 from app.config import settings
+from app.database import get_db
+from app.models.database_models import SessionModel, MessageModel
+import json as json_lib
 
 
 class UnifiedAgent:
@@ -42,38 +46,56 @@ class UnifiedAgent:
                 name="UnifiedChatbotAgent"
             )
             
-            # Storage delle sessioni
-            self.sessions: Dict[str, ChatSession] = {}
-            
             logger.info("UnifiedAgent inizializzato con successo")
             
         except Exception as e:
             logger.error(f"Errore nell'inizializzazione di UnifiedAgent: {e}")
             raise
 
-    def get_or_create_session(self, session_id: str) -> ChatSession:
+    async def get_or_create_session(self, session_id: str, db: AsyncSession) -> SessionModel:
         """Ottiene o crea una nuova sessione"""
-        if session_id not in self.sessions:
-            self.sessions[session_id] = ChatSession(session_id=session_id)
-            logger.info(f"Nuova sessione creata: {session_id}")
-        return self.sessions[session_id]
+        # Cerca la sessione esistente
+        result = await db.execute(
+            SessionModel.__table__.select().where(SessionModel.session_id == session_id)
+        )
+        session = result.first()
+        
+        if session:
+            return session[0]
+        
+        # Crea una nuova sessione
+        new_session = SessionModel(session_id=session_id)
+        db.add(new_session)
+        await db.commit()
+        await db.refresh(new_session)
+        logger.info(f"Nuova sessione creata: {session_id}")
+        return new_session
 
-    def _build_conversation_context(self, session: ChatSession) -> str:
+    async def _build_conversation_context(self, session: SessionModel, db: AsyncSession) -> str:
         """Costruisce il contesto della conversazione dalla cronologia"""
-        if not session.conversation_history:
+        # Ottieni gli ultimi 10 messaggi (5 scambi)
+        result = await db.execute(
+            MessageModel.__table__.select()
+            .where(MessageModel.session_id == session.id)
+            .order_by(MessageModel.timestamp.desc())
+            .limit(10)
+        )
+        messages = result.all()
+        
+        if not messages:
             return "Nessuna conversazione precedente."
         
-        context_lines = []
-        # Prendi solo gli ultimi 5 scambi per non sovraccaricare il prompt
-        recent_history = session.conversation_history[-10:]  # 5 scambi = 10 messaggi
+        # Riordina cronologicamente
+        messages = list(reversed(messages))
         
-        for entry in recent_history:
-            role = "UTENTE" if entry["role"] == "user" else "ASSISTENTE"
-            context_lines.append(f"{role}: {entry['message']}")
+        context_lines = []
+        for msg in messages:
+            role = "UTENTE" if msg[0].role == "user" else "ASSISTENTE"
+            context_lines.append(f"{role}: {msg[0].message}")
         
         return "\n".join(context_lines)
 
-    def _get_unified_prompt(self, session: ChatSession, user_message: str) -> str:
+    async def _get_unified_prompt(self, session: SessionModel, user_message: str, db: AsyncSession) -> str:
         """Genera il prompt unificato che gestisce conversazione e lifecycle"""
         current_lifecycle = session.current_lifecycle
         current_config = LIFECYCLE_SCRIPTS.get(current_lifecycle, {})
@@ -85,7 +107,7 @@ class UnifiedAgent:
         next_stage = current_config.get("next_stage")
         
         # Contesto conversazione
-        conversation_context = self._build_conversation_context(session)
+        conversation_context = await self._build_conversation_context(session, db)
         
         # Costruisci il prompt unificato
         unified_prompt = f"""Sei un assistente virtuale specializzato nel supportare persone interessate a percorsi di nutrizione e psicologia.
@@ -148,89 +170,90 @@ RISPOSTA:"""
         Returns:
             LifecycleResponse con la risposta e informazioni sul lifecycle
         """
-        try:
-            # Ottieni o crea la sessione
-            session = self.get_or_create_session(session_id)
-            previous_lifecycle = session.current_lifecycle
-            
-            # Genera il prompt unificato
-            unified_prompt = self._get_unified_prompt(session, user_message)
-            logger.info("-------------------------------------------------")
-            logger.info(f"Prompt unificato per sessione {session_id}:\n{unified_prompt}")
-            logger.info("-------------------------------------------------")
-            
-            # Invia il messaggio all'AI
-            logger.info(f"Invio messaggio unificato per sessione {session_id}")
-            
+        async for db in get_db():
             try:
-                ai_result = await self.agent.a_run(unified_prompt)
-                ai_response = ai_result.text
-                logger.info(f"Risposta AI ricevuta per sessione {session_id}")
-            except Exception as ai_error:
-                logger.error(f"Errore con l'AI: {ai_error}")
-                # Fallback response
-                return self._create_fallback_response(session_id, user_message, previous_lifecycle)
-            
-            # Parsing della risposta JSON
-            try:
-                # Pulisci la risposta da eventuali markdown
-                cleaned_response = ai_response.strip()
-                if cleaned_response.startswith("```json"):
-                    cleaned_response = cleaned_response[7:]
-                if cleaned_response.endswith("```"):
-                    cleaned_response = cleaned_response[:-3]
-                cleaned_response = cleaned_response.strip()
+                # Ottieni o crea la sessione
+                session = await self.get_or_create_session(session_id, db)
+                previous_lifecycle = session.current_lifecycle
                 
-                response_data = json.loads(cleaned_response)
+                # Genera il prompt unificato
+                unified_prompt = await self._get_unified_prompt(session, user_message, db)
+                logger.info("-------------------------------------------------")
+                logger.info(f"Prompt unificato per sessione {session_id}:\n{unified_prompt}")
+                logger.info("-------------------------------------------------")
                 
-                # Estrai i dati dalla risposta
-                message = response_data.get("message", "Ciao! Come posso aiutarti oggi?")
-                should_change = response_data.get("should_change_lifecycle", False)
-                new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
-                reasoning = response_data.get("reasoning", "Risposta automatica")
-                confidence = response_data.get("confidence", 0.5)
+                # Invia il messaggio all'AI
+                logger.info(f"Invio messaggio unificato per sessione {session_id}")
                 
-                # Determina il nuovo lifecycle
-                lifecycle_changed = False
-                new_lifecycle = session.current_lifecycle
+                try:
+                    ai_result = await self.agent.a_run(unified_prompt)
+                    ai_response = ai_result.text
+                    logger.info(f"Risposta AI ricevuta per sessione {session_id}")
+                except Exception as ai_error:
+                    logger.error(f"Errore con l'AI: {ai_error}")
+                    # Fallback response
+                    return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
                 
-                if should_change and confidence >= 0.7:
-                    try:
-                        new_lifecycle = LifecycleStage(new_lifecycle_str)
-                        if new_lifecycle != session.current_lifecycle:
-                            self._update_session_lifecycle(session, new_lifecycle)
-                            lifecycle_changed = True
-                            logger.info(f"Sessione {session_id}: {previous_lifecycle.value} → {new_lifecycle.value}")
-                    except ValueError:
-                        logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
-                
-                # Aggiungi il messaggio alla cronologia
-                self._add_to_conversation_history(session, user_message, message)
-                
-                # Genera next actions
-                next_actions = self._get_next_actions(new_lifecycle)
-                
-                return LifecycleResponse(
-                    message=message,
-                    current_lifecycle=new_lifecycle,
-                    lifecycle_changed=lifecycle_changed,
-                    previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
-                    next_actions=next_actions,
-                    ai_reasoning=reasoning
-                )
-                
-            except json.JSONDecodeError as json_error:
-                logger.error(f"Errore nel parsing JSON: {json_error}")
-                logger.error(f"Risposta AI: {ai_response}")
-                return self._create_fallback_response(session_id, user_message, previous_lifecycle)
-                
-        except Exception as e:
-            logger.error(f"Errore generale nell'agente unificato: {e}")
-            return self._create_fallback_response(session_id, user_message, previous_lifecycle)
+                # Parsing della risposta JSON
+                try:
+                    # Pulisci la risposta da eventuali markdown
+                    cleaned_response = ai_response.strip()
+                    if cleaned_response.startswith("```json"):
+                        cleaned_response = cleaned_response[7:]
+                    if cleaned_response.endswith("```"):
+                        cleaned_response = cleaned_response[:-3]
+                    cleaned_response = cleaned_response.strip()
+                    
+                    response_data = json.loads(cleaned_response)
+                    
+                    # Estrai i dati dalla risposta
+                    message = response_data.get("message", "Ciao! Come posso aiutarti oggi?")
+                    should_change = response_data.get("should_change_lifecycle", False)
+                    new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
+                    reasoning = response_data.get("reasoning", "Risposta automatica")
+                    confidence = response_data.get("confidence", 0.5)
+                    
+                    # Determina il nuovo lifecycle
+                    lifecycle_changed = False
+                    new_lifecycle = session.current_lifecycle
+                    
+                    if should_change and confidence >= 0.7:
+                        try:
+                            new_lifecycle = LifecycleStage(new_lifecycle_str)
+                            if new_lifecycle != session.current_lifecycle:
+                                await self._update_session_lifecycle(session, new_lifecycle, db)
+                                lifecycle_changed = True
+                                logger.info(f"Sessione {session_id}: {previous_lifecycle.value} → {new_lifecycle.value}")
+                        except ValueError:
+                            logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
+                    
+                    # Aggiungi il messaggio alla cronologia
+                    await self._add_to_conversation_history(session, user_message, message, db)
+                    
+                    # Genera next actions
+                    next_actions = self._get_next_actions(new_lifecycle)
+                    
+                    return LifecycleResponse(
+                        message=message,
+                        current_lifecycle=new_lifecycle,
+                        lifecycle_changed=lifecycle_changed,
+                        previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
+                        next_actions=next_actions,
+                        ai_reasoning=reasoning
+                    )
+                    
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"Errore nel parsing JSON: {json_error}")
+                    logger.error(f"Risposta AI: {ai_response}")
+                    return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
+                    
+            except Exception as e:
+                logger.error(f"Errore generale nell'agente unificato: {e}")
+                return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
 
-    def _create_fallback_response(self, session_id: str, user_message: str, current_lifecycle: LifecycleStage) -> LifecycleResponse:
+    async def _create_fallback_response(self, session_id: str, user_message: str, current_lifecycle: LifecycleStage, db: AsyncSession) -> LifecycleResponse:
         """Crea una risposta di fallback quando l'AI non è disponibile"""
-        session = self.get_or_create_session(session_id)
+        session = await self.get_or_create_session(session_id, db)
         
         fallback_messages = {
             LifecycleStage.NUOVA_LEAD: "Ciao! Sono qui per aiutarti con il tuo percorso di benessere. Come posso supportarti oggi?",
@@ -243,7 +266,7 @@ RISPOSTA:"""
         message = fallback_messages.get(current_lifecycle, "Grazie per il tuo messaggio. Come posso aiutarti?")
         
         # Aggiungi alla cronologia
-        self._add_to_conversation_history(session, user_message, message)
+        await self._add_to_conversation_history(session, user_message, message, db)
         
         return LifecycleResponse(
             message=message,
@@ -253,40 +276,37 @@ RISPOSTA:"""
             ai_reasoning="Risposta di fallback - AI non disponibile"
         )
 
-    def _update_session_lifecycle(self, session: ChatSession, new_lifecycle: LifecycleStage) -> None:
+    async def _update_session_lifecycle(self, session: SessionModel, new_lifecycle: LifecycleStage, db: AsyncSession) -> None:
         """Aggiorna il lifecycle della sessione"""
-        old_lifecycle = session.current_lifecycle
         session.current_lifecycle = new_lifecycle
-        
-        # Registra la transizione nella cronologia
-        session.lifecycle_history.append({
-            "timestamp": str(int(time.time())),
-            "from_lifecycle": old_lifecycle.value,
-            "to_lifecycle": new_lifecycle.value,
-            "transition_reason": "Unified AI decision"
-        })
+        await db.commit()
 
-    def _add_to_conversation_history(self, session: ChatSession, user_message: str, ai_response: str) -> None:
+    async def _add_to_conversation_history(self, session: SessionModel, user_message: str, ai_response: str, db: AsyncSession) -> None:
         """Aggiunge i messaggi alla cronologia della conversazione"""
-        timestamp = str(int(time.time()))
+        from datetime import datetime
         
         # Aggiungi messaggio utente
-        session.conversation_history.append({
-            "role": "user",
-            "message": user_message,
-            "timestamp": timestamp
-        })
+        user_msg = MessageModel(
+            session_id=session.id,
+            role="user",
+            message=user_message,
+            timestamp=datetime.utcnow()
+        )
+        db.add(user_msg)
         
         # Aggiungi risposta AI
-        session.conversation_history.append({
-            "role": "assistant",
-            "message": ai_response,
-            "timestamp": timestamp
-        })
+        ai_msg = MessageModel(
+            session_id=session.id,
+            role="assistant",
+            message=ai_response,
+            timestamp=datetime.utcnow()
+        )
+        db.add(ai_msg)
         
-        # Mantieni solo gli ultimi 20 messaggi per ottimizzare la memoria
-        if len(session.conversation_history) > 20:
-            session.conversation_history = session.conversation_history[-20:]
+        await db.commit()
+        
+        # Mantieni solo gli ultimi 20 messaggi per ottimizzare la memoria (opzionale, ma per pulizia)
+        # Potremmo implementare una pulizia periodica
 
     def _get_next_actions(self, current_lifecycle: LifecycleStage) -> List[str]:
         """Genera le prossime azioni suggerite basate sul lifecycle corrente"""
@@ -320,20 +340,33 @@ RISPOSTA:"""
         
         return actions_map.get(current_lifecycle, ["Continua la conversazione"])
 
-    def get_session_info(self, session_id: str) -> Optional[Dict]:
+    async def get_session_info(self, session_id: str) -> Optional[Dict]:
         """Ottiene informazioni sulla sessione"""
-        if session_id not in self.sessions:
-            return None
-        
-        session = self.sessions[session_id]
-        return {
-            "session_id": session_id,
-            "current_lifecycle": session.current_lifecycle.value,
-            "conversation_length": len(session.conversation_history),
-            "lifecycle_history": session.lifecycle_history
-        }
+        async for db in get_db():
+            result = await db.execute(
+                SessionModel.__table__.select().where(SessionModel.session_id == session_id)
+            )
+            session_row = result.first()
+            if not session_row:
+                return None
+            
+            session = session_row[0]
+            
+            # Conta i messaggi
+            result = await db.execute(
+                MessageModel.__table__.select().where(MessageModel.session_id == session.id)
+            )
+            message_count = len(result.all())
+            
+            return {
+                "session_id": session.session_id,
+                "current_lifecycle": session.current_lifecycle.value,
+                "conversation_length": message_count,
+                "created_at": session.created_at.isoformat(),
+                "updated_at": session.updated_at.isoformat()
+            }
 
-    def is_available(self) -> bool:
+    async def is_available(self) -> bool:
         """Verifica se il servizio è disponibile"""
         try:
             return self.agent is not None and self.client is not None
@@ -348,13 +381,11 @@ RISPOSTA:"""
             return {
                 "status": "healthy",
                 "ai_response": "OK" in test_result.text,
-                "sessions_count": str(len(self.sessions))
             }
         except Exception as e:
             return {
                 "status": "unhealthy",
                 "error": str(e),
-                "sessions_count": str(len(self.sessions))
             }
 
 
