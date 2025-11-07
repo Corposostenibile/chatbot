@@ -36,6 +36,15 @@ get_port() {
     fi
 }
 
+# Funzione per verificare se Poetry è installato
+check_poetry() {
+    if ! command -v poetry &> /dev/null; then
+        print_error "Poetry non è installato. Installalo con:"
+        echo "curl -sSL https://install.python-poetry.org | python3 -"
+        exit 1
+    fi
+}
+
 # Funzione per setup dell'ambiente
 setup_environment() {
     print_header "Setup Ambiente di Sviluppo"
