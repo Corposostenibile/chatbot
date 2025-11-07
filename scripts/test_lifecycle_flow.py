@@ -1,63 +1,84 @@
 #!/usr/bin/env python3
 """
 Script di test per simulare un lifecycle completo del chatbot
-Chiama direttamente gli endpoint FastAPI
+Chiama gli endpoint HTTP del server FastAPI in esecuzione
 """
-import asyncio
 import asyncio
 import json
 import time
 from typing import Dict, List
 
-# Import dell'agente unificato
-from app.services.unified_agent import unified_agent
+import httpx
+
+from app.config import settings
 
 TEST_SESSION_ID = f"test_lifecycle_{int(time.time())}"
+BASE_URL = f"http://localhost:{settings.port}"  # Usa la porta dalle settings
 
 class ChatbotTester:
     """Classe per testare il lifecycle del chatbot"""
 
-    def __init__(self, session_id: str):
+    def __init__(self, session_id: str, base_url: str = BASE_URL):
         self.session_id = session_id
+        self.base_url = base_url
         self.conversation_history = []
 
     async def send_message(self, message: str) -> Dict:
-        """Invia un messaggio al chatbot chiamando direttamente l'agente"""
+        """Invia un messaggio al chatbot chiamando l'endpoint /chat"""
         try:
-            # Chiama direttamente l'agente unificato
-            response = await unified_agent.chat(self.session_id, message)
-            
-            # Converte la risposta in dict per compatibilità
-            response_data = {
-                "response": response.message,
-                "session_id": self.session_id,
-                "current_lifecycle": response.current_lifecycle.value,
-                "lifecycle_changed": response.lifecycle_changed,
-                "previous_lifecycle": response.previous_lifecycle.value if response.previous_lifecycle else None,
-                "next_actions": response.next_actions,
-                "ai_reasoning": response.ai_reasoning,
-                "timestamp": str(int(time.time()))
-            }
-            
-            self.conversation_history.append({
-                "user": message,
-                "bot": response_data.get("response", ""),
-                "lifecycle": response_data.get("current_lifecycle", ""),
-                "changed": response_data.get("lifecycle_changed", False)
-            })
-            return response_data
+            async with httpx.AsyncClient() as client:
+                payload = {
+                    "message": message,
+                    "session_id": self.session_id
+                }
+                
+                response = await client.post(
+                    f"{self.base_url}/chat",
+                    json=payload,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    response_data = response.json()
+                    
+                    self.conversation_history.append({
+                        "user": message,
+                        "bot": response_data.get("response", ""),
+                        "lifecycle": response_data.get("current_lifecycle", ""),
+                        "changed": response_data.get("lifecycle_changed", False)
+                    })
+                    return response_data
+                else:
+                    print(f"❌ Errore HTTP {response.status_code}: {response.text}")
+                    return None
 
+        except httpx.RequestError as e:
+            print(f"❌ Errore di connessione: {e}")
+            return None
         except Exception as e:
-            print(f"❌ Errore chiamata agente: {e}")
+            print(f"❌ Errore chiamata endpoint: {e}")
             import traceback
             traceback.print_exc()
             return None
 
     async def get_session_info(self) -> Dict:
-        """Ottiene informazioni sulla sessione chiamando direttamente l'agente"""
+        """Ottiene informazioni sulla sessione chiamando l'endpoint /session/{session_id}"""
         try:
-            response = await unified_agent.get_session_info(self.session_id)
-            return response
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/session/{self.session_id}",
+                    timeout=10.0
+                )
+                
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    print(f"❌ Errore HTTP {response.status_code}: {response.text}")
+                    return None
+
+        except httpx.RequestError as e:
+            print(f"❌ Errore di connessione: {e}")
+            return None
         except Exception as e:
             print(f"❌ Errore chiamata get_session_info: {e}")
             return None
@@ -72,12 +93,34 @@ class ChatbotTester:
             print(f"   📊 Lifecycle: {msg['lifecycle']} {'(CAMBIO)' if msg['changed'] else ''}")
             print("-" * 40)
 
+async def check_server_health(base_url: str) -> bool:
+    """Verifica se il server è in esecuzione e risponde"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{base_url}/health", timeout=5.0)
+            return response.status_code == 200
+    except Exception:
+        return False
+
+
 async def test_complete_lifecycle():
     """Test del lifecycle completo"""
     print("🚀 Avvio test lifecycle completo del chatbot")
     print(f"🆔 Session ID: {TEST_SESSION_ID}")
+    print(f"🌐 Server URL: {BASE_URL}")
+    print(f"🔌 Porta configurata: {settings.port}")
 
-    tester = ChatbotTester(TEST_SESSION_ID)
+    # Verifica che il server sia in esecuzione
+    print("\n🔍 Verifica connessione al server...")
+    if not await check_server_health(BASE_URL):
+        print("❌ Il server non è in esecuzione o non risponde!")
+        print(f"   Assicurati che il server sia avviato su {BASE_URL}")
+        print("   Puoi avviarlo con: ./scripts/local-dev.sh dev")
+        return False
+    
+    print("✅ Server raggiungibile")
+
+    tester = ChatbotTester(TEST_SESSION_ID, BASE_URL)
 
     # Sequenza di messaggi per testare il lifecycle
     test_messages = [

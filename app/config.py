@@ -42,3 +42,8 @@ class Settings(BaseSettings):
 
 # Istanza globale delle impostazioni
 settings = Settings()
+
+
+def get_settings() -> Settings:
+    """Dependency per ottenere le impostazioni"""
+    return settings

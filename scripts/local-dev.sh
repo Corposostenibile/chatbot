@@ -26,12 +26,13 @@ print_header() {
     echo -e "${BLUE}=== $1 ===${NC}"
 }
 
-# Funzione per verificare se Poetry è installato
-check_poetry() {
-    if ! command -v poetry &> /dev/null; then
-        print_error "Poetry non è installato. Installalo con:"
-        echo "curl -sSL https://install.python-poetry.org | python3 -"
-        exit 1
+# Funzione per ottenere la porta dalle impostazioni
+get_port() {
+    if [ -f .env ]; then
+        PORT=$(grep '^PORT=' .env | cut -d '=' -f2 | tr -d '"')
+        echo "${PORT:-8080}"  # Default a 8080 se non trovato
+    else
+        echo "8080"
     fi
 }
 
@@ -62,6 +63,10 @@ run_dev() {
     
     check_poetry
     
+    # Ottieni la porta dalle impostazioni
+    PORT=$(get_port)
+    print_status "Usando porta: $PORT"
+    
     # Avvia il database con Docker se non è già attivo
     if ! docker-compose -f docker-compose.dev.yml ps postgres | grep -q "Up"; then
         print_status "Avviando database PostgreSQL con Docker..."
@@ -72,7 +77,7 @@ run_dev() {
     fi
     
     print_status "Avviando il server di sviluppo..."
-    poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    poetry run uvicorn app.main:app --host 0.0.0.0 --port $PORT --reload
 }
 
 # Funzione per testare la connessione al database
