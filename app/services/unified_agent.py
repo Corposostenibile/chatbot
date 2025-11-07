@@ -4,6 +4,7 @@ Agente unificato che gestisce conversazione e lifecycle management in un'unica c
 import json
 import time
 from typing import Dict, Optional, List
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
@@ -56,12 +57,12 @@ class UnifiedAgent:
         """Ottiene o crea una nuova sessione"""
         # Cerca la sessione esistente
         result = await db.execute(
-            SessionModel.__table__.select().where(SessionModel.session_id == session_id)
+            select(SessionModel).where(SessionModel.session_id == session_id)
         )
-        session = result.first()
+        session = result.scalar_one_or_none()
         
         if session:
-            return session[0]
+            return session
         
         # Crea una nuova sessione
         new_session = SessionModel(session_id=session_id)
@@ -75,12 +76,12 @@ class UnifiedAgent:
         """Costruisce il contesto della conversazione dalla cronologia"""
         # Ottieni gli ultimi 10 messaggi (5 scambi)
         result = await db.execute(
-            MessageModel.__table__.select()
+            select(MessageModel)
             .where(MessageModel.session_id == session.id)
             .order_by(MessageModel.timestamp.desc())
             .limit(10)
         )
-        messages = result.all()
+        messages = result.scalars().all()
         
         if not messages:
             return "Nessuna conversazione precedente."
@@ -90,8 +91,8 @@ class UnifiedAgent:
         
         context_lines = []
         for msg in messages:
-            role = "UTENTE" if msg[0].role == "user" else "ASSISTENTE"
-            context_lines.append(f"{role}: {msg[0].message}")
+            role = "UTENTE" if msg.role == "user" else "ASSISTENTE"
+            context_lines.append(f"{role}: {msg.message}")
         
         return "\n".join(context_lines)
 
@@ -344,19 +345,17 @@ RISPOSTA:"""
         """Ottiene informazioni sulla sessione"""
         async for db in get_db():
             result = await db.execute(
-                SessionModel.__table__.select().where(SessionModel.session_id == session_id)
+                select(SessionModel).where(SessionModel.session_id == session_id)
             )
-            session_row = result.first()
-            if not session_row:
+            session = result.scalar_one_or_none()
+            if not session:
                 return None
-            
-            session = session_row[0]
             
             # Conta i messaggi
             result = await db.execute(
-                MessageModel.__table__.select().where(MessageModel.session_id == session.id)
+                select(func.count(MessageModel.id)).where(MessageModel.session_id == session.id)
             )
-            message_count = len(result.all())
+            message_count = result.scalar()
             
             return {
                 "session_id": session.session_id,

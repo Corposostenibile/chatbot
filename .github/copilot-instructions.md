@@ -1,7 +1,7 @@
 # 🤖 Linee Guida per la Codifica AI del Chatbot
 
 ## Panoramica dell'Architettura
-Questo progetto espone un'API basata su FastAPI per la gestione di conversazioni con potenziali clienti di Corposostenibile nel settore nutrizione/psicologia. L'app integra respond.io tramite webhook per gestire più conversazioni simultaneamente e utilizza Google Gemini AI per automatizzare le risposte e transitare i lead attraverso le fasi del ciclo di vita: `NUOVA_LEAD` → `CONTRASSEGNATO` → `IN_TARGET` → `LINK_DA_INVIARE` → `LINK_INVIATO`.
+Questo progetto espone un'API basata su FastAPI per la gestione di conversazioni con potenziali clienti di Corposostenibile nel settore nutrizione/psicologia. L'app espone un endpoint che viene chiamato da respond.io tramite webhook e utilizza Google Gemini AI per automatizzare le risposte e transitare i lead attraverso le fasi del ciclo di vita: `NUOVA_LEAD` → `CONTRASSEGNATO` → `IN_TARGET` → `LINK_DA_INVIARE` → `LINK_INVIATO`.
 
 Le sessioni e le conversazioni sono persistite in un database PostgreSQL per garantire la continuità tra riavvii dell'applicazione.
 
@@ -69,12 +69,6 @@ unified_prompt = f"""...FORMATO RISPOSTA RICHIESTO:
 - Cloud Run con 0-10 istanze, 512Mi memoria
 - Health check su `/health` endpoint
 - Usa libreria `datapizza-ai` per Google Gemini integration
-
-### Database
-- Usa SQLAlchemy con asyncpg per operazioni asincrone
-- Modelli: `SessionModel` per sessioni, `MessageModel` per messaggi
-- Tabelle create automaticamente al startup
-- Configurazione via `DATABASE_URL` in `.env`
 
 ## File Chiave da Riferire
 - `app/services/unified_agent.py`: Logica conversazione AI

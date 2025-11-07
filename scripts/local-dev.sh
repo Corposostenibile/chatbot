@@ -75,6 +75,45 @@ run_dev() {
     poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 }
 
+# Funzione per testare la connessione al database
+test_db() {
+    print_header "Test Connessione Database"
+    
+    check_poetry
+    
+    print_status "Testando connessione PostgreSQL..."
+    poetry run python scripts/test_db_connection.py
+    
+    if [ $? -eq 0 ]; then
+        print_status "✅ Connessione database OK"
+    else
+        print_error "❌ Problemi con il database"
+    fi
+}
+
+# Funzione per testare il lifecycle completo
+test_lifecycle() {
+    print_header "Test Lifecycle Completo"
+    
+    check_poetry
+    
+    # Verifica che il database sia attivo
+    if ! docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
+        print_error "Il database non sembra essere attivo"
+        print_status "Avvia il database con: ./scripts/local-dev.sh dev"
+        exit 1
+    fi
+    
+    print_status "Testando lifecycle completo del chatbot..."
+    poetry run python scripts/test_lifecycle_flow.py
+    
+    if [ $? -eq 0 ]; then
+        print_status "✅ Test lifecycle completato"
+    else
+        print_error "❌ Test lifecycle fallito"
+    fi
+}
+
 # Funzione per fermare il database
 stop_db() {
     print_header "Fermando Database"
@@ -139,6 +178,8 @@ show_help() {
     echo "  setup     - Configura l'ambiente di sviluppo"
     echo "  dev       - Avvia l'applicazione in modalità sviluppo (con DB)"
     echo "  test      - Esegue i test"
+    echo "  test-db   - Test connessione database"
+    echo "  test-lifecycle - Test flusso completo lifecycle"
     echo "  format    - Formatta il codice"
     echo "  build     - Build dell'immagine Docker"
     echo "  docker    - Avvia con Docker Compose"
@@ -149,6 +190,8 @@ show_help() {
     echo "  $0 setup    # Prima configurazione"
     echo "  $0 dev      # Sviluppo locale con DB"
     echo "  $0 test     # Esegui test"
+    echo "  $0 test-db  # Test connessione DB"
+    echo "  $0 test-lifecycle # Test flusso lifecycle"
 }
 
 # Main
@@ -161,6 +204,12 @@ case "${1:-help}" in
         ;;
     test)
         run_tests
+        ;;
+    test-db)
+        test_db
+        ;;
+    test-lifecycle)
+        test_lifecycle
         ;;
     format)
         format_code

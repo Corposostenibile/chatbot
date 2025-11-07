@@ -1,52 +1,73 @@
 # 🤖 Chatbot con FastAPI
 
-Un chatbot moderno e scalabile costruito con FastAPI, ottimizzato per Google Cloud Run.
+Un chatbot moderno e scalabile costruito con FastAPI, ottimizzato per Google Cloud Run. Gestisce conversazioni con potenziali clienti nel settore nutrizione/psicologia.
 
-## 🚀 Tech Stack
+## Panoramica dell'Architettura
+
+Questo progetto espone un'API basata su FastAPI per la gestione di conversazioni con potenziali clienti di Corposostenibile nel settore nutrizione/psicologia. L'app espone un endpoint che viene chiamato da respond.io tramite webhook e utilizza Google Gemini AI per automatizzare le risposte e transitare i lead attraverso le fasi del ciclo di vita: `NUOVA_LEAD` → `CONTRASSEGNATO` → `IN_TARGET` → `LINK_DA_INVIARE` → `LINK_INVIATO`.
+
+Le sessioni e le conversazioni sono persistite in un database PostgreSQL per garantire la continuità tra riavvii dell'applicazione.
+
+**Componenti Chiave:**
+- `app/main.py`: Endpoint FastAPI (`/chat`, `/health`, `/status`, `/session/{id}`)
+- `app/services/unified_agent.py`: Gestore conversazioni alimentato da AI con decisioni sul ciclo di vita
+- `app/models/lifecycle.py`: Fasi del ciclo di vita e modelli di transizione
+- `app/models/database_models.py`: Modelli SQLAlchemy per sessioni e messaggi
+- `app/database.py`: Configurazione connessione database
+- `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
+
+## Flusso di Sviluppo
+
+- **Setup**: `./scripts/local-dev.sh setup` (installa dipendenze Poetry, crea `.env`)
+- **Esegui localmente**: `./scripts/local-dev.sh dev` (FastAPI nativa con Poetry + PostgreSQL in Docker)
+- **Test**: `./scripts/local-dev.sh test` (pytest con coverage)
+- **Formatta**: `./scripts/local-dev.sh format` (black + isort + flake8)
+- **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)
+
+## Tech Stack
 
 - **Python 3.11** - Linguaggio di programmazione
-- **FastAPI** - Framework web moderno e veloce
-- **Docker** - Containerizzazione
-- **Poetry** - Gestione dipendenze e packaging
+- **FastAPI** - Framework web moderno e veloce (esecuzione nativa con Poetry)
+- **PostgreSQL** - Database relazionale (containerizzato con Docker)
+- **Docker** - Containerizzazione solo per database
+- **Poetry** - Gestione dipendenze e packaging per l'applicazione
 - **Google Cloud Run** - Deployment serverless
 - **Uvicorn** - Server ASGI ad alte prestazioni
+- **SQLAlchemy** - ORM per database con supporto async
+- **Google Gemini AI** - Intelligenza artificiale per conversazioni
 
-## 📁 Struttura del Progetto
+## Struttura del Progetto
 
 ```
 chatbot/
 ├── app/                    # Codice dell'applicazione
-│   ├── __init__.py
 │   ├── main.py            # Applicazione FastAPI principale
-│   └── config.py          # Configurazioni
+│   ├── config.py          # Configurazioni
+│   ├── database.py        # Configurazione database
+│   ├── models/
+│   │   ├── lifecycle.py   # Modelli ciclo di vita
+│   │   └── database_models.py # Modelli SQLAlchemy
+│   ├── services/
+│   │   └── unified_agent.py # Logica AI conversazioni
+│   └── data/
+│       └── lifecycle_config.py # Configurazioni fasi
 ├── tests/                 # Test automatizzati
-│   ├── __init__.py
-│   └── test_main.py
 ├── scripts/               # Script di utilità
 │   ├── deploy.sh         # Script per deployment
 │   └── local-dev.sh      # Script per sviluppo locale
-├── docs/                 # Documentazione
-├── .github/workflows/    # GitHub Actions (futuro)
+├── docker-compose.dev.yml # Solo PostgreSQL per sviluppo
 ├── pyproject.toml        # Configurazione Poetry
 ├── Dockerfile            # Docker per produzione
-├── Dockerfile.dev       # Docker per sviluppo
-├── docker-compose.yml   # Compose per produzione
-├── docker-compose.dev.yml # Compose per sviluppo
-├── cloudbuild.yaml      # Configurazione Cloud Build
-├── service.yaml         # Configurazione Cloud Run
-├── .env.example         # Template variabili d'ambiente
-├── .gitignore
 └── README.md
 ```
 
-## 🛠️ Setup Locale
+## Setup Locale
 
 ### Prerequisiti
 
 - Python 3.11+
 - Poetry ([Installazione](https://python-poetry.org/docs/#installation))
-- Docker (opzionale, per containerizzazione)
-- Google Cloud CLI (per deployment)
+- Docker (solo per database PostgreSQL)
 
 ### Installazione Rapida
 
@@ -82,32 +103,48 @@ poetry run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 docker-compose up --build
 ```
 
-**Nota**: Lo script `local-dev.sh dev` avvia automaticamente PostgreSQL con Docker e poi l'app con Poetry.
+**Nota**: Lo script `local-dev.sh dev` avvia automaticamente PostgreSQL con Docker e poi l'app FastAPI con Poetry.
 
 L'applicazione sarà disponibile su:
 - **API**: http://localhost:8080
 - **Documentazione**: http://localhost:8080/docs
 - **Health Check**: http://localhost:8080/health
 
-## 🧪 Test e Qualità del Codice
+## Pattern di Codifica
 
-```bash
-# Esegui tutti i test
-./scripts/local-dev.sh test
-
-# Oppure manualmente:
-poetry run pytest tests/ -v --cov=app --cov-report=term-missing
-
-# Formattazione codice
-./scripts/local-dev.sh format
-
-# Oppure manualmente:
-poetry run black app/ tests/
-poetry run isort app/ tests/
-poetry run flake8 app/ tests/
+### Formato Risposta AI
+Richiedi sempre risposte JSON dall'AI con questa struttura esatta:
+```json
+{
+  "message": "Risposta conversazionale naturale",
+  "should_change_lifecycle": true/false,
+  "new_lifecycle": "nome_fase",
+  "reasoning": "Spiegazione della decisione",
+  "confidence": 0.0-1.0
+}
 ```
 
-## 🐳 Docker
+### Gestione del Ciclo di Vita
+- Usa l'enum `LifecycleStage` per le fasi
+- Memorizza la cronologia conversazioni (limita a ultimi 20 messaggi)
+- Transita solo con confidenza ≥ 0.7
+- Non menzionare mai i cicli di vita agli utenti
+
+### Gestione Errori
+- Risposte di fallback quando l'AI fallisce (vedi `_create_fallback_response`)
+- Gestori eccezioni globali in `main.py`
+- Health check per disponibilità AI
+
+### Configurazione
+- Usa `Settings` Pydantic da `config.py` (carica da `.env`)
+- Variabili ambiente: `GOOGLE_AI_API_KEY`, `DEBUG`, `LOG_LEVEL`, `DATABASE_URL`
+
+### Testing
+- Usa `TestClient` FastAPI per test endpoint
+- Mock risposte AI per testing deterministico
+- Test transizioni ciclo di vita e gestione sessioni
+
+## Docker
 
 ### Database Locale
 Il progetto utilizza PostgreSQL come database. Per lo sviluppo locale:
@@ -136,7 +173,60 @@ docker build -f Dockerfile.dev -t chatbot:dev .
 docker-compose up --build
 ```
 
-## ☁️ Deployment su Google Cloud Run
+## Configurazione
+
+### Variabili d'Ambiente
+
+Copia `.env.example` in `.env` e configura:
+
+```bash
+# Configurazione dell'applicazione
+APP_NAME=Chatbot
+DEBUG=false
+LOG_LEVEL=info
+
+# Server
+HOST=0.0.0.0
+PORT=8080
+
+# Security
+SECRET_KEY=your-secret-key-here
+
+# Database (già configurato per sviluppo locale)
+DATABASE_URL=postgresql+asyncpg://chatbot:password@localhost:5432/chatbot
+
+# Google Cloud
+GOOGLE_CLOUD_PROJECT=your-project-id
+
+# API Keys (aggiungi le tue)
+OPENAI_API_KEY=your-openai-key
+ANTHROPIC_API_KEY=your-anthropic-key
+GOOGLE_AI_API_KEY=your-google-ai-key
+```
+
+## API Endpoints
+
+### Principali
+
+- `GET /` - Informazioni base
+- `GET /health` - Health check per Cloud Run
+- `GET /status` - Status dettagliato
+- `POST /chat` - Endpoint principale del chatbot
+- `GET /session/{session_id}` - Informazioni sessione
+
+### Esempio Utilizzo
+
+```bash
+# Health check
+curl https://your-app-url/health
+
+# Chat
+curl -X POST https://your-app-url/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Ciao!", "user_id": "user123"}'
+```
+
+## Deployment su Google Cloud Run
 
 ### Setup Iniziale
 
@@ -171,116 +261,7 @@ docker-compose up --build
 # - Mostrerà l'URL finale
 ```
 
-### Deployment Manuale
-
-```bash
-# 1. Abilita le API
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable run.googleapis.com
-gcloud services enable containerregistry.googleapis.com
-
-# 2. Build e deploy
-gcloud builds submit --config cloudbuild.yaml .
-
-# 3. Ottieni l'URL del servizio
-gcloud run services describe chatbot --region=europe-west1 --format="value(status.url)"
-```
-
-### Configurazione Avanzata
-
-Per configurazioni avanzate, modifica <mcfile name="service.yaml" path="/home/ubuntu/chatbot/service.yaml"></mcfile>:
-
-- **Scaling**: Modifica `minScale` e `maxScale`
-- **Risorse**: Cambia CPU e memoria
-- **Variabili d'ambiente**: Aggiungi nuove env vars
-- **Health checks**: Personalizza i controlli di salute
-
-## 🔧 Configurazione
-
-### Variabili d'Ambiente
-
-Copia <mcfile name=".env.example" path="/home/ubuntu/chatbot/.env.example"></mcfile> in `.env` e configura:
-
-```bash
-# Configurazione dell'applicazione
-APP_NAME=Chatbot
-DEBUG=false
-LOG_LEVEL=info
-
-# Server
-HOST=0.0.0.0
-PORT=8080
-
-# Security
-SECRET_KEY=your-secret-key-here
-
-# Database (già configurato per sviluppo locale)
-DATABASE_URL=postgresql+asyncpg://chatbot:password@localhost:5432/chatbot
-
-# Google Cloud
-GOOGLE_CLOUD_PROJECT=your-project-id
-
-# API Keys (aggiungi le tue)
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
-GOOGLE_AI_API_KEY=your-google-ai-key
-```
-
-## 📚 API Endpoints
-
-### Principali
-
-- `GET /` - Informazioni base
-- `GET /health` - Health check per Cloud Run
-- `GET /status` - Status dettagliato
-- `POST /chat` - Endpoint principale del chatbot
-
-### Esempio Utilizzo
-
-```bash
-# Health check
-curl https://your-app-url/health
-
-# Chat
-curl -X POST https://your-app-url/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Ciao!", "user_id": "user123"}'
-```
-
-## 🔍 Monitoraggio e Logs
-
-```bash
-# Visualizza logs in tempo reale
-gcloud run services logs read chatbot --region=europe-west1 --follow
-
-# Logs recenti
-gcloud run services logs read chatbot --region=europe-west1 --limit=50
-
-# Metriche del servizio
-gcloud run services describe chatbot --region=europe-west1
-```
-
-## 🚀 Sviluppo e Contributi
-
-### Workflow di Sviluppo
-
-1. **Setup**: `./scripts/local-dev.sh setup`
-2. **Sviluppo**: `./scripts/local-dev.sh dev` (avvia DB + app)
-3. **Test**: `./scripts/local-dev.sh test`
-4. **Format**: `./scripts/local-dev.sh format`
-5. **Build**: `./scripts/local-dev.sh build`
-6. **Stop DB**: `./scripts/local-dev.sh db-stop`
-7. **Deploy**: `./scripts/deploy.sh`
-
-### Aggiungere Nuove Funzionalità
-
-1. Modifica <mcfile name="app/main.py" path="/home/ubuntu/chatbot/app/main.py"></mcfile> per nuovi endpoint
-2. Aggiungi test in <mcfolder name="tests" path="/home/ubuntu/chatbot/tests"></mcfolder>
-3. Aggiorna la documentazione
-4. Testa localmente
-5. Deploy
-
-## 🔒 Sicurezza
+## Sicurezza
 
 - ✅ Utente non-root nel container
 - ✅ Variabili d'ambiente per secrets
@@ -289,7 +270,7 @@ gcloud run services describe chatbot --region=europe-west1
 - ✅ Logging strutturato
 - ✅ Gestione errori globale
 
-## 📈 Performance
+## Performance
 
 - **Cold Start**: ~2-3 secondi
 - **Memoria**: 512Mi (configurabile)
@@ -297,46 +278,12 @@ gcloud run services describe chatbot --region=europe-west1
 - **Concorrenza**: 80 richieste per istanza
 - **Scaling**: 0-10 istanze (configurabile)
 
-## 🆘 Troubleshooting
+## File Chiave da Riferire
 
-### Problemi Comuni
-
-1. **Build fallisce**:
-   ```bash
-   # Verifica Poetry
-   poetry check
-   
-   # Reinstalla dipendenze
-   poetry install --no-cache
-   ```
-
-2. **Deploy fallisce**:
-   ```bash
-   # Verifica autenticazione
-   gcloud auth list
-   
-   # Verifica progetto
-   gcloud config get-value project
-   ```
-
-3. **App non risponde**:
-   ```bash
-   # Controlla logs
-   gcloud run services logs read chatbot --region=europe-west1
-   
-   # Verifica health check
-   curl https://your-app-url/health
-   ```
-
-## 📞 Supporto
-
-- **Documentazione API**: `/docs` (solo in sviluppo)
-- **Health Check**: `/health`
-- **Status**: `/status`
-
-## 📄 Licenza
-
-[Inserisci qui la tua licenza]
+- `app/services/unified_agent.py`: Logica conversazione AI
+- `app/data/lifecycle_config.py`: Script fasi e trigger
+- `scripts/local-dev.sh`: Comandi sviluppo
+- `cloudbuild.yaml`: Pipeline CI/CD
 
 ---
 
