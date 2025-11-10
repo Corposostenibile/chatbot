@@ -53,7 +53,7 @@ class UnifiedAgent:
             # Inizializza il client Google
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
-                model="gemini-2.0-flash",
+                model="gemini-2.0-flash-lite",
             )
             
             # Inizializza l'agent
