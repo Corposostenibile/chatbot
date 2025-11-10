@@ -91,6 +91,39 @@ async def flow_visualization():
         )
 
 
+@router.get("/preview", response_class=HTMLResponse)
+async def preview():
+    """Endpoint per testare la rotta /chat con un'interfaccia web"""
+    try:
+        # Ottieni il percorso del template
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+        
+        # Verifica che la directory templates esista
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=500, detail="Template directory not found")
+        
+        # Leggi il file HTML direttamente
+        template_path = os.path.join(templates_dir, "chat.html")
+        
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="Chat test template not found")
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        return html_content
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel caricamento del template di test chat: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Errore nel caricamento del template di test: {str(e)}"
+        )
+
+
 @router.get("/health", response_model=HealthCheck)
 async def health_check():
     """Health check endpoint per Cloud Run"""
