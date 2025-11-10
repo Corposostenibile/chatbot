@@ -17,7 +17,7 @@ from app.models.lifecycle import (
     ChatSession, 
     LifecycleResponse
 )
-from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
+from app.data.lifecycle_config import LIFECYCLE_SCRIPTS, SYSTEM_PROMPT
 from app.config import settings
 from app.database import get_db
 from app.models.database_models import SessionModel, MessageModel
@@ -39,14 +39,12 @@ class UnifiedAgent:
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
                 model="gemini-2.5-flash",
-                temperature=0.7,
-                system_prompt="Sei un assistente AI specializzato in nutrizione e psicologia."
             )
             
             # Inizializza l'agent
             self.agent = Agent(
                 client=self.client,
-                name="UnifiedChatbotAgent"
+                name="UnifiedChatbotAgent",
             )
             
             logger.info("UnifiedAgent inizializzato con successo")
@@ -113,15 +111,7 @@ class UnifiedAgent:
         conversation_context = await self._build_conversation_context(session, db)
         
         # Costruisci il prompt unificato
-        unified_prompt = f"""Sei un assistente virtuale specializzato nel supportare persone interessate a percorsi di nutrizione e psicologia.
-
-LA TUA IDENTITÀ:
-- Sei empatico, professionale e orientato al risultato
-- Non sei un nutrizionista o psicologo, ma un consulente che guida verso la soluzione giusta
-- Il tuo obiettivo è far arrivare il cliente al lifecycle "Link Inviato"
-- Mantieni sempre un tono caldo ma professionale
-
-LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
+        unified_prompt = f"""
 OBIETTIVO CORRENTE: {objective}
 
 SCRIPT GUIDA PER QUESTO LIFECYCLE:
@@ -137,7 +127,7 @@ ISTRUZIONI:
 2. Usa il script come guida ma mantieni la conversazione fluida
 3. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
 4. NON menzionare mai i lifecycle al cliente
-5. PUOI SPEZZETTARE LA TUA RISPOSTA in messaggi multipli per sembrare più umano
+5. PUOI SPEZZETTARE LA TUA RISPOSTA in messaggi multipli per sembrare più umano (massimo 3 messaggi)
 6. Se decidi di spezzettare, specifica i delay tra i messaggi
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):

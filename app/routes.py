@@ -151,7 +151,10 @@ async def chat_endpoint(chat_message: ChatMessage):
             user_message=chat_message.message
         )
 
-        logger.info(f"Risposta agente unificato per sessione {chat_message.session_id}: {lifecycle_response.message[:100]}...")
+        # Estrai il testo per il logging
+        log_text = lifecycle_response.messages
+
+        logger.info(f"Risposta agente unificato per sessione {chat_message.session_id}: {log_text[:100]}...")
 
         return ChatResponse(
             messages=lifecycle_response.messages,
