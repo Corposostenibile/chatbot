@@ -45,25 +45,85 @@ check_poetry() {
     fi
 }
 
-# Funzione per setup dell'ambiente
-setup_environment() {
-    print_header "Setup Ambiente di Sviluppo"
+# Funzione per configurazione totale dell'ambiente
+configurazione_totale() {
+    print_header "Configurazione Totale Ambiente di Sviluppo"
     
-    # Verifica Poetry
-    check_poetry
+    # Verifica se Python è installato
+    if ! command -v python3 &> /dev/null; then
+        print_error "Python 3 non è installato. Installalo prima di continuare."
+        exit 1
+    fi
     
-    # Installa dipendenze
-    print_status "Installando dipendenze con Poetry..."
+    print_status "Python trovato: $(python3 --version)"
+    
+    # Verifica e installa Poetry se necessario
+    if ! command -v poetry &> /dev/null; then
+        print_warning "Poetry non trovato. Installando Poetry..."
+        curl -sSL https://install.python-poetry.org | python3 -
+        export PATH="$HOME/.local/bin:$PATH"
+        if ! command -v poetry &> /dev/null; then
+            print_error "Installazione Poetry fallita. Installalo manualmente."
+            exit 1
+        fi
+        print_status "Poetry installato con successo."
+    else
+        print_status "Poetry già installato."
+    fi
+    
+    # Rimuovi eventuali venv esistenti per forzare la creazione nel progetto
+    print_status "Rimuovendo eventuali ambienti virtuali esistenti..."
+    poetry env remove --all 2>/dev/null || true
+    
+    # Configura Poetry per creare venv nel progetto
+    print_status "Configurando Poetry per ambiente virtuale nel progetto..."
+    poetry config virtualenvs.in-project true
+    
+    # Installa dipendenze Python
+    print_status "Installando dipendenze Python con Poetry..."
     poetry install
+    
+    # Verifica se Docker è installato
+    if ! command -v docker &> /dev/null; then
+        print_warning "Docker non trovato. Assicurati che sia installato per il database."
+    else
+        print_status "Docker trovato."
+    fi
+    
+    # Verifica se Docker Compose è installato
+    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+        print_warning "Docker Compose non trovato. Assicurati che sia installato per il database."
+    else
+        print_status "Docker Compose trovato."
+    fi
     
     # Crea file .env se non esiste
     if [ ! -f .env ]; then
         print_status "Creando file .env da .env.example..."
         cp .env.example .env
-        print_warning "Ricordati di configurare le variabili in .env!"
+        print_warning "⚠️  IMPORTANTE: Configura le variabili d'ambiente in .env prima di continuare!"
+        print_warning "   In particolare: GOOGLE_AI_API_KEY, DATABASE_URL, ecc."
+    else
+        print_status "File .env già esistente."
     fi
     
-    print_status "Setup completato!"
+    # Verifica configurazione essenziale
+    if [ -f .env ]; then
+        if ! grep -q "GOOGLE_AI_API_KEY" .env; then
+            print_warning "GOOGLE_AI_API_KEY non trovata in .env. Aggiungila!"
+        fi
+    fi
+    
+    # Test connessione database (se possibile)
+    print_status "Tentando test connessione database..."
+    if poetry run python scripts/test_db_connection.py 2>/dev/null; then
+        print_status "✅ Connessione database OK"
+    else
+        print_warning "❌ Database non raggiungibile. Avvia con './scripts/local-dev.sh dev'"
+    fi
+    
+    print_status "🎉 Configurazione totale completata!"
+    print_status "Ora puoi avviare l'applicazione con: ./scripts/local-dev.sh dev"
 }
 
 # Funzione per uccidere il server esistente se attivo
@@ -84,6 +144,33 @@ kill_existing_server() {
     fi
 }
 
+# Funzione per liberare la porta del database
+kill_existing_db() {
+    local port=5432
+    print_status "Controllando se la porta del database $port è occupata..."
+    
+    # Ferma eventuali container Docker che usano la porta
+    local containers=$(docker ps --filter "publish=$port" --format "{{.Names}}" 2>/dev/null || true)
+    if [ -n "$containers" ]; then
+        print_warning "Container Docker trovati che usano la porta $port: $containers. Fermandoli..."
+        echo "$containers" | xargs docker stop 2>/dev/null || true
+        echo "$containers" | xargs docker rm 2>/dev/null || true
+        sleep 2
+    fi
+    
+    # Trova i PID che usano la porta
+    local pids=$(sudo lsof -ti:$port 2>/dev/null || true)
+    
+    if [ -n "$pids" ]; then
+        print_warning "Processo trovato sulla porta $port (PID: $pids). Uccidendo..."
+        echo "$pids" | xargs sudo kill -9 2>/dev/null || true
+        sleep 2  # Aspetta che il processo termini
+        print_status "Processo precedente ucciso."
+    else
+        print_status "Porta $port libera."
+    fi
+}
+
 # Funzione per avviare l'app in modalità sviluppo
 run_dev() {
     print_header "Avvio Applicazione (Modalità Sviluppo)"
@@ -100,6 +187,8 @@ run_dev() {
     # Avvia il database con Docker se non è già attivo
     if ! docker-compose -f docker-compose.dev.yml ps postgres | grep -q "Up"; then
         print_status "Avviando database PostgreSQL con Docker..."
+        # Libera la porta del database se occupata
+        kill_existing_db
         docker-compose -f docker-compose.dev.yml up -d postgres
         sleep 3  # Aspetta che il DB sia pronto
     else
@@ -212,7 +301,7 @@ show_help() {
 # Main
 case "${1:-help}" in
     setup)
-        setup_environment
+        configurazione_totale
         ;;
     dev)
         run_dev

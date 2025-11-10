@@ -22,6 +22,7 @@ class ChatResponse(BaseModel):
     previous_lifecycle: Optional[str] = None
     next_actions: List[str] = []
     ai_reasoning: Optional[str] = None
+    confidence: float = 0.0
     debug_logs: Optional[List[str]] = None
     full_logs: Optional[str] = None
     timestamp: str

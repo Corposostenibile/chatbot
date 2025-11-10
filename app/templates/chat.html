@@ -193,7 +193,6 @@
             const defaultSessionId = `session-${Date.now()}`;
             sessionIdInput.value = defaultSessionId;
             updateSessionId(defaultSessionId);
-            addMessage('Ciao! Sono il tuo assistente. Come posso aiutarti oggi?', 'bot');
             renderLogs(`[${getTimestamp()}] [INFO] - Agent initialized and ready.`);
         }
 
@@ -241,7 +240,7 @@
                 
                 addMessage(data.response, 'bot');
                 
-                statusContainer.innerHTML = `<strong>Status:</strong><div id="status">Lifecycle: <strong>${data.current_lifecycle || 'N/A'}</strong>${data.lifecycle_changed ? `<br>Cambio: ${data.previous_lifecycle} → ${data.current_lifecycle}` : ''}</div>`;
+                statusContainer.innerHTML = `<strong>Status:</strong><div id="status">Lifecycle: <strong>${data.current_lifecycle || 'N/A'}</strong>${data.lifecycle_changed ? `<br>Cambio: ${data.previous_lifecycle} → ${data.current_lifecycle}${data.ai_reasoning ? `<br><small style="color: #666; font-style: italic;">Motivo: ${data.ai_reasoning}</small>` : ''}${data.confidence ? `<br><small style="color: #888;">Confidenza: ${(data.confidence * 100).toFixed(1)}%</small>` : ''}` : ''}</div>`;
 
                 if (data.full_logs) { renderLogs(data.full_logs); }
 

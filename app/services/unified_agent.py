@@ -280,6 +280,7 @@ RISPOSTA:"""
                         previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
                         next_actions=next_actions,
                         ai_reasoning=reasoning,
+                        confidence=confidence,
                         debug_logs=log_capture.get_session_logs(),
                         full_logs=log_capture.get_session_logs_str()
                     )
@@ -320,6 +321,7 @@ RISPOSTA:"""
             lifecycle_changed=False,
             next_actions=self._get_next_actions(current_lifecycle),
             ai_reasoning="Risposta di fallback - AI non disponibile",
+            confidence=0.0,
             debug_logs=log_capture.get_session_logs(),
             full_logs=log_capture.get_session_logs_str()
         )
