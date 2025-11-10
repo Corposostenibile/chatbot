@@ -3,360 +3,252 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot Preview</title>
+    <title>Chatbot Preview & Debug</title>
+    
+    <!-- Google Fonts & Font Awesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Prism.js per Syntax Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    
     <style>
-        * {
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --background-gradient: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            --text-light: #ffffff;
+            --text-dark: #343a40;
+            --panel-bg: #ffffff;
+            --border-color: #e9ecef;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --border-radius: 12px;
+            --log-bg: #1e1e1e;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            height: 100%; margin: 0; font-family: 'Poppins', sans-serif;
+            background-color: #f4f7fc; overflow: hidden;
+        }
+        /* ... [Stili base e layout rimangono invariati] ... */
+        .main-container { display: flex; gap: 20px; padding: 20px; height: 100%; }
+        .chat-column, .logs-column { flex: 1; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+        .panel { background: var(--panel-bg); border-radius: var(--border-radius); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
+        .panel-header { background: var(--background-gradient); color: var(--text-light); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .panel-header h5 { margin: 0; font-size: 18px; font-weight: 600; }
+        .panel-header h5 i { margin-right: 10px; opacity: 0.8; }
+        .panel-header small { opacity: 0.9; font-size: 12px; }
+        .sidebar-panel { flex-shrink: 0; }
+        .sidebar-panel-content { padding: 20px; }
+        .chat-panel { flex-grow: 1; }
+        .sidebar-section { margin-bottom: 25px; }
+        .sidebar-section:last-child { margin-bottom: 0; }
+        .sidebar-section h6 { color: var(--primary-color); font-weight: 600; margin-bottom: 12px; font-size: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
+        .form-group label { font-weight: 500; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
+        .form-control { font-size: 14px; border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 12px; transition: all 0.2s ease; }
+        .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15); outline: none; }
+        .status-badge { background: #f0f3ff; border-left: 4px solid var(--primary-color); padding: 12px; border-radius: 8px; font-size: 13px; color: var(--text-dark); }
+        .status-badge strong { color: var(--primary-color); display: block; margin-bottom: 5px; font-weight: 600; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; }
+        .message { margin-bottom: 15px; display: flex; animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { justify-content: flex-end; }
+        .message.bot { justify-content: flex-start; }
+        .message-content { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+        .message.user .message-content { background: var(--primary-color); color: var(--text-light); border-bottom-right-radius: 5px; }
+        .message.bot .message-content { background: #e9ecef; color: var(--text-dark); border-bottom-left-radius: 5px; }
+        .message-time { font-size: 11px; color: #888; margin-top: 5px; padding: 0 8px; }
+        .message.user .message-time { text-align: right; }
+        .chat-input-area { padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
+        #message { flex: 1; padding: 10px 15px; resize: none; max-height: 120px; }
+        .btn-send { background: var(--background-gradient); color: var(--text-light); border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; flex-shrink: 0; transition: transform 0.2s, box-shadow 0.2s; }
+        .btn-send:hover { transform: scale(1.1); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .btn-send:disabled { opacity: 0.6; cursor: not-allowed; transform: scale(1); box-shadow: none; }
+        .logs-panel { flex-grow: 1; }
+        .logs-content {
+            flex: 1; overflow-y: auto; background: var(--log-bg); color: #d4d4d4;
+            font-family: 'SF Mono', 'Courier New', monospace; font-size: 12px; padding: 15px; line-height: 1.7;
+        }
+        /* --- STILI PER LOG STANDARD --- */
+        .log-entry { display: flex; align-items: flex-start; gap: 10px; padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; transition: background-color 0.2s; }
+        .log-entry:hover { background-color: #333; }
+        .log-icon { flex-shrink: 0; width: 16px; text-align: center; padding-top: 2px; }
+        .log-timestamp { color: #888; }
+        .log-level { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 10px; text-align: center; min-width: 60px; }
+        .log-message { white-space: pre-wrap; word-break: break-all; }
+        .log-entry.INFO .log-icon { color: #57a6ff; } .log-entry.INFO .log-level { background-color: #2e4a68; color: #a9d1ff; }
+        .log-entry.DEBUG .log-icon { color: #8a9099; } .log-entry.DEBUG .log-level { background-color: #3b3b3b; color: #a0a0a0; }
+        .log-entry.WARNING .log-icon { color: #ffcc00; } .log-entry.WARNING .log-level { background-color: #615119; color: #fbe06f; }
+        .log-entry.ERROR .log-icon { color: #ff6b6b; } .log-entry.ERROR .log-level { background-color: #612a2a; color: #ffb8b8; }
+        .log-entry.CRITICAL .log-icon { color: #ff4757; font-weight: bold; } .log-entry.CRITICAL .log-level { background-color: #e60023; color: white; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); } }
+        
+        /* --- NUOVI STILI PER BLOCCHI PROMPT/RISPOSTA --- */
+        .ai-log-container {
+            border: 1px solid #444;
+            border-radius: 8px;
+            margin: 15px 0;
+            background-color: #2a2a2e;
+            overflow: hidden;
+        }
+        .ai-log-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .ai-log-header.prompt { background-color: #2e4a68; color: #a9d1ff; }
+        .ai-log-header.response { background-color: #285430; color: #a3e8b3; }
+        .ai-log-content {
+            padding: 15px;
+            background-color: #1e1e1e;
+            font-size: 12.5px;
+        }
+        .ai-log-content pre, .ai-log-content code {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            display: flex;
-            gap: 20px;
-            max-width: 1200px;
-            width: 100%;
-        }
-
-        .sidebar {
-            flex: 1;
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .chat-container {
-            flex: 1.5;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            max-height: 90vh;
-        }
-
-        .chat-header {
-            padding: 20px;
-            border-bottom: 2px solid #f0f0f0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 12px 12px 0 0;
-        }
-
-        .chat-header h1 {
-            font-size: 20px;
-            margin-bottom: 5px;
-        }
-
-        .chat-header p {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-
-        .chat-messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #f9f9f9;
-        }
-
-        .message {
-            margin-bottom: 15px;
-            display: flex;
-            animation: slideIn 0.3s ease-in-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.user {
-            justify-content: flex-end;
-        }
-
-        .message.bot {
-            justify-content: flex-start;
-        }
-
-        .message-content {
-            max-width: 70%;
-            padding: 12px 15px;
-            border-radius: 12px;
-            word-wrap: break-word;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-
-        .message.user .message-content {
-            background: #667eea;
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-
-        .message.bot .message-content {
-            background: #e0e0e0;
-            color: #333;
-            border-bottom-left-radius: 4px;
-        }
-
-        .message-meta {
-            font-size: 11px;
-            margin-top: 4px;
-            opacity: 0.7;
-            padding: 0 5px;
-        }
-
-        .chat-input-area {
-            padding: 15px;
-            border-top: 2px solid #f0f0f0;
-            display: flex;
-            gap: 10px;
-        }
-
-        .input-wrapper {
-            display: flex;
-            gap: 10px;
-            flex: 1;
-        }
-
-        #message {
-            flex: 1;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
+            background: none !important;
             font-family: inherit;
-            resize: none;
-            transition: border-color 0.3s;
+            font-size: inherit;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
-        #message:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-
-        button:active {
-            transform: translateY(0);
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .sidebar h2 {
-            margin-bottom: 15px;
-            color: #667eea;
-            font-size: 18px;
-        }
-
-        .form-group {
-            margin-bottom: 18px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #333;
-            font-size: 13px;
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 13px;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .status-info {
-            background: #f0f7ff;
-            border-left: 4px solid #667eea;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            color: #333;
-            margin-top: 15px;
-        }
-
-        .status-info strong {
-            color: #667eea;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                max-height: 300px;
-            }
-
-            .message-content {
-                max-width: 85%;
-            }
-        }
+        /* --- Altri stili e responsive... --- */
+        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+        .logs-content::-webkit-scrollbar-track { background: #2a2a2a; } .logs-content::-webkit-scrollbar-thumb { background: #555; } .logs-content::-webkit-scrollbar-thumb:hover { background: #777; }
+        @media (max-width: 1024px) { body { overflow: auto; } .main-container { flex-direction: column; height: auto; } .chat-column, .logs-column { min-height: 400px; } }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="sidebar">
-            <h2>Configura</h2>
-            <form id="configForm">
-                <div class="form-group">
-                    <label for="sessionId">Session ID:</label>
-                    <input type="text" id="sessionId" name="sessionId" placeholder="es. test-session-001" required>
+    <div class="main-container">
+        <!-- Colonna Sinistra: Chat -->
+        <div class="chat-column">
+            <!-- Sidebar -->
+            <div class="sidebar-panel panel">
+                <div class="sidebar-panel-content">
+                    <div class="sidebar-section">
+                        <h6><i class="fa-solid fa-sliders"></i> Configura</h6>
+                        <form id="configForm">
+                            <div class="form-group">
+                                <label for="sessionId">Session ID:</label>
+                                <input type="text" id="sessionId" class="form-control" placeholder="es. test-session-001" required>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="sidebar-section">
+                        <h6><i class="fa-solid fa-signal"></i> Stato</h6>
+                        <div class="status-badge" id="statusContainer">
+                            <strong>Status:</strong>
+                            <div id="status">Pronto</div>
+                        </div>
+                    </div>
                 </div>
-            </form>
-
-            <div class="status-info">
-                <strong>Status:</strong>
-                <div id="status">Pronto</div>
+            </div>
+            <!-- Chat -->
+            <div class="chat-panel panel">
+                <div class="panel-header">
+                    <h5><i class="fa-regular fa-comments"></i> Chatbot Preview</h5>
+                    <small id="sessionDisplay">Nessuna sessione</small>
+                </div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <textarea id="message" class="form-control" placeholder="Scrivi un messaggio..." rows="1"></textarea>
+                    <button type="submit" id="sendBtn" class="btn-send"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
             </div>
         </div>
-
-        <div class="chat-container">
-            <div class="chat-header">
-                <h1>Chatbot Preview</h1>
-                <p id="sessionDisplay">Sessione: non configurata</p>
-            </div>
-
-            <div class="chat-messages" id="chatMessages"></div>
-
-            <div class="chat-input-area">
-                <div class="input-wrapper">
-                    <textarea id="message" placeholder="Scrivi un messaggio..." rows="1"></textarea>
-                    <button type="submit" id="sendBtn">Invia</button>
+        <!-- Colonna Destra: Logs -->
+        <div class="logs-column">
+            <div class="logs-panel panel">
+                <div class="panel-header">
+                    <h5><i class="fa-solid fa-terminal"></i> Debug Logs</h5>
+                    <small>Dettagli agente</small>
                 </div>
+                <div class="logs-content" id="debugLogs"></div>
             </div>
         </div>
     </div>
 
-    <script>
-        let currentSessionId = null;
+    <!-- Prism.js Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
+    <script>
+        // ... [Variabili e funzioni di inizializzazione rimangono invariate] ...
+        let currentSessionId = null;
         const sessionIdInput = document.getElementById('sessionId');
         const messageInput = document.getElementById('message');
         const sendBtn = document.getElementById('sendBtn');
         const chatMessages = document.getElementById('chatMessages');
-        const statusDiv = document.getElementById('status');
+        const statusContainer = document.getElementById('statusContainer');
         const sessionDisplay = document.getElementById('sessionDisplay');
+        const debugLogsDiv = document.getElementById('debugLogs');
 
-        // Genera un session ID di default
-        const defaultSessionId = `session-${Date.now()}`;
-        sessionIdInput.value = defaultSessionId;
-        currentSessionId = defaultSessionId;
-        sessionDisplay.textContent = `Sessione: ${currentSessionId}`;
+        function initialize() {
+            const defaultSessionId = `session-${Date.now()}`;
+            sessionIdInput.value = defaultSessionId;
+            updateSessionId(defaultSessionId);
+            addMessage('Ciao! Sono il tuo assistente. Come posso aiutarti oggi?', 'bot');
+            renderLogs(`[${getTimestamp()}] [INFO] - Agent initialized and ready.`);
+        }
 
-        // Update session ID quando cambia
-        sessionIdInput.addEventListener('change', function() {
-            currentSessionId = this.value || defaultSessionId;
+        function updateSessionId(newId) {
+            currentSessionId = newId;
             sessionDisplay.textContent = `Sessione: ${currentSessionId}`;
-        });
+        }
 
-        // Auto-resize textarea
+        sessionIdInput.addEventListener('change', (e) => updateSessionId(e.target.value));
         messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+            this.style.height = `${Math.min(this.scrollHeight, 120)}px`;
         });
-
-        // Invio messaggio con Enter
-        messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
         });
-
         sendBtn.addEventListener('click', sendMessage);
 
         async function sendMessage() {
             const message = messageInput.value.trim();
-            
             if (!message || !currentSessionId) {
-                alert('Inserisci un messaggio e una session ID valida');
+                alert('Inserisci un messaggio e una Session ID valida.');
                 return;
             }
 
-            // Aggiungi messaggio utente
             addMessage(message, 'user');
             messageInput.value = '';
             messageInput.style.height = 'auto';
             sendBtn.disabled = true;
-            statusDiv.textContent = 'Invio in corso...';
+            statusContainer.querySelector('#status').textContent = 'In elaborazione...';
 
             try {
                 const response = await fetch('/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         session_id: currentSessionId,
                         message: message
                     })
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+                if (!response.ok) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); }
 
                 const data = await response.json();
+                
                 addMessage(data.response, 'bot');
                 
-                statusDiv.innerHTML = `
-                    <strong>Lifecycle:</strong> ${data.current_lifecycle}
-                    ${data.lifecycle_changed ? `<br><strong>Cambio:</strong> ${data.previous_lifecycle} → ${data.current_lifecycle}` : ''}
-                `;
+                statusContainer.innerHTML = `<strong>Status:</strong><div id="status">Lifecycle: <strong>${data.current_lifecycle || 'N/A'}</strong>${data.lifecycle_changed ? `<br>Cambio: ${data.previous_lifecycle} → ${data.current_lifecycle}` : ''}</div>`;
+
+                if (data.full_logs) { renderLogs(data.full_logs); }
+
             } catch (error) {
-                addMessage(`❌ Errore: ${error.message}`, 'bot');
-                statusDiv.textContent = 'Errore nella comunicazione';
+                addMessage(`❌ Errore di comunicazione: ${error.message}`, 'bot');
+                statusContainer.querySelector('#status').textContent = 'Errore';
+                renderLogs(`[${getTimestamp()}] [CRITICAL] - API Fetch failed: ${error.message}`);
             } finally {
                 sendBtn.disabled = false;
                 messageInput.focus();
@@ -366,28 +258,100 @@
         function addMessage(text, sender) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
-            
-            const now = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-            
-            messageDiv.innerHTML = `
-                <div>
-                    <div class="message-content">${escapeHtml(text)}</div>
-                    <div class="message-meta">${now}</div>
-                </div>
-            `;
-            
+            const time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+            messageDiv.innerHTML = `<div><div class="message-content">${escapeHtml(text)}</div><div class="message-time">${time}</div></div>`;
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        /**
+         * NUOVA LOGICA DI RENDERLOGS
+         * Riconosce se il log è un blocco AI o una serie di linee standard.
+         */
+        function renderLogs(logString) {
+            debugLogsDiv.innerHTML = '';
+            if (!logString) return;
+
+            // Controlla se è un log strutturato con Prompt e Risposta JSON
+            const isStructuredLog = logString.includes('SCRIPT GUIDA') && logString.includes('```json');
+
+            if (isStructuredLog) {
+                renderStructuredAILog(logString);
+            } else {
+                // Altrimenti, processa linea per linea come prima
+                logString.split('\n').forEach(line => {
+                    if (line.trim() === '') return;
+                    const logElement = parseAndCreateLogElement(line);
+                    debugLogsDiv.appendChild(logElement);
+                });
+            }
+            debugLogsDiv.scrollTop = debugLogsDiv.scrollHeight;
+        }
+        
+        /**
+         * NUOVA FUNZIONE per renderizzare i blocchi Prompt/Risposta
+         */
+        function renderStructuredAILog(logString) {
+            // Estrae il prompt
+            const promptMatch = logString.match(/SCRIPT GUIDA([\s\S]*?)```json/);
+            const promptText = promptMatch ? `SCRIPT GUIDA${promptMatch[1]}` : 'Prompt non trovato.';
+            
+            // Estrae la risposta JSON
+            const responseMatch = logString.match(/```json([\s\S]*)```/);
+            const responseJson = responseMatch ? responseMatch[1].trim() : 'Risposta JSON non trovata.';
+
+            // Pulisce il testo dai prefissi di log
+            const cleanPrompt = promptText.replace(/\[.*?\]\s\[INFO\]\s-\s/g, '').trim();
+
+            const promptHtml = `
+                <div class="ai-log-container">
+                    <div class="ai-log-header prompt">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Prompt Inviato all'AI</span>
+                    </div>
+                    <div class="ai-log-content">
+                        <pre>${escapeHtml(cleanPrompt)}</pre>
+                    </div>
+                </div>
+            `;
+
+            const responseHtml = `
+                <div class="ai-log-container">
+                    <div class="ai-log-header response">
+                        <i class="fa-solid fa-robot"></i>
+                        <span>Risposta JSON Ricevuta</span>
+                    </div>
+                    <div class="ai-log-content">
+                        <pre><code class="language-json">${escapeHtml(responseJson)}</code></pre>
+                    </div>
+                </div>
+            `;
+            
+            debugLogsDiv.innerHTML = promptHtml + responseHtml;
+            Prism.highlightAll(); // Attiva il syntax highlighting
         }
 
-        // Messaggio di benvenuto
-        addMessage('Ciao! Come posso aiutarti?', 'bot');
+        function parseAndCreateLogElement(logLine) {
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'log-entry';
+            const regex = /\[([^\]]+)\]\s+\[(DEBUG|INFO|WARNING|ERROR|CRITICAL)\]\s+-\s+(.*)/s;
+            const match = logLine.match(regex);
+            let timestamp, level, message;
+
+            if (match) { [ , timestamp, level, message] = match.map(s => s.trim()); } 
+            else { timestamp = getTimestamp(); level = 'INFO'; message = logLine; }
+            
+            entryDiv.classList.add(level);
+            const icons = { 'DEBUG': 'fa-solid fa-bug', 'INFO': 'fa-solid fa-circle-info', 'WARNING': 'fa-solid fa-triangle-exclamation', 'ERROR': 'fa-solid fa-circle-xmark', 'CRITICAL': 'fa-solid fa-skull-crossbones' };
+            
+            entryDiv.innerHTML = `<i class="log-icon ${icons[level] || 'fa-solid fa-question'}"></i><span class="log-timestamp">${escapeHtml(timestamp)}</span><span class="log-level">${escapeHtml(level)}</span><span class="log-message">${escapeHtml(message)}</span>`;
+            return entryDiv;
+        }
+
+        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        function getTimestamp() { return new Date().toLocaleTimeString('it-IT', { hour12: false }); }
+        
+        initialize();
     </script>
 </body>
-</html></content>
+</html>

@@ -4,6 +4,7 @@ Agente unificato che gestisce conversazione e lifecycle management in un'unica c
 import json
 import time
 from typing import Dict, Optional, List
+from datetime import datetime
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
@@ -20,6 +21,7 @@ from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
 from app.config import settings
 from app.database import get_db
 from app.models.database_models import SessionModel, MessageModel
+from app.logger_config import log_capture
 import json as json_lib
 
 
@@ -171,31 +173,60 @@ RISPOSTA:"""
         Returns:
             LifecycleResponse con la risposta e informazioni sul lifecycle
         """
+        # Inizia una nuova sessione di log
+        log_capture.start_session()
+        
         async for db in get_db():
             try:
+                # STARTING AGENT
+                log_capture.add_log("INFO", "-------------------------------------------------")
+                log_capture.add_log("INFO", "STARTING AGENT")
+                
                 # Ottieni o crea la sessione
                 session = await self.get_or_create_session(session_id, db)
                 previous_lifecycle = session.current_lifecycle
                 
+                log_capture.add_log("INFO", f"Session loaded: {session_id}")
+                
                 # Genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
+                log_capture.add_log("INFO", f"Prompt unificato per sessione {session_id}:")
+                
+                # Log del prompt (line by line)
+                prompt_lines = unified_prompt.split('\n')
+                for line in prompt_lines:
+                    if line.strip():
+                        log_capture.add_log("INFO", f"{line}")
+                
                 logger.info("-------------------------------------------------")
                 logger.info(f"Prompt unificato per sessione {session_id}:\n{unified_prompt}")
                 logger.info("-------------------------------------------------")
                 
                 # Invia il messaggio all'AI
+                log_capture.add_log("INFO", "-------------------------------------------------")
+                log_capture.add_log("INFO", f"Invio messaggio unificato per sessione {session_id}")
                 logger.info(f"Invio messaggio unificato per sessione {session_id}")
                 
                 try:
                     ai_result = await self.agent.a_run(unified_prompt)
                     ai_response = ai_result.text
+                    log_capture.add_log("INFO", "AI response received")
+                    
+                    # Log della risposta (prime 15 righe)
+                    response_lines = ai_response.split('\n')[:15]
+                    for line in response_lines:
+                        if line.strip():
+                            log_capture.add_log("INFO", f"{line}")
+                    
                     logger.info(f"Risposta AI ricevuta per sessione {session_id}")
                 except Exception as ai_error:
+                    log_capture.add_log("INFO", "ERROR: AI call failed")
                     logger.error(f"Errore con l'AI: {ai_error}")
                     # Fallback response
                     return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
                 
                 # Parsing della risposta JSON
+                log_capture.add_log("INFO", "Parsing AI response...")
                 try:
                     # Pulisci la risposta da eventuali markdown
                     cleaned_response = ai_response.strip()
@@ -206,6 +237,7 @@ RISPOSTA:"""
                     cleaned_response = cleaned_response.strip()
                     
                     response_data = json.loads(cleaned_response)
+                    log_capture.add_log("INFO", "JSON parsed successfully")
                     
                     # Estrai i dati dalla risposta
                     message = response_data.get("message", "Ciao! Come posso aiutarti oggi?")
@@ -213,6 +245,8 @@ RISPOSTA:"""
                     new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
                     reasoning = response_data.get("reasoning", "Risposta automatica")
                     confidence = response_data.get("confidence", 0.5)
+                    
+                    log_capture.add_log("INFO", f"Decision: change={should_change}, confidence={confidence}")
                     
                     # Determina il nuovo lifecycle
                     lifecycle_changed = False
@@ -224,15 +258,20 @@ RISPOSTA:"""
                             if new_lifecycle != session.current_lifecycle:
                                 await self._update_session_lifecycle(session, new_lifecycle, db)
                                 lifecycle_changed = True
+                                log_capture.add_log("INFO", f"Lifecycle changed: {previous_lifecycle.value} → {new_lifecycle.value}")
                                 logger.info(f"Sessione {session_id}: {previous_lifecycle.value} → {new_lifecycle.value}")
                         except ValueError:
+                            log_capture.add_log("INFO", f"WARNING: Invalid lifecycle {new_lifecycle_str}")
                             logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
                     
                     # Aggiungi il messaggio alla cronologia
                     await self._add_to_conversation_history(session, user_message, message, db)
+                    log_capture.add_log("INFO", "Conversation history updated")
                     
                     # Genera next actions
                     next_actions = self._get_next_actions(new_lifecycle)
+                    
+                    log_capture.add_log("INFO", "Response ready")
                     
                     return LifecycleResponse(
                         message=message,
@@ -240,20 +279,26 @@ RISPOSTA:"""
                         lifecycle_changed=lifecycle_changed,
                         previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
                         next_actions=next_actions,
-                        ai_reasoning=reasoning
+                        ai_reasoning=reasoning,
+                        debug_logs=log_capture.get_session_logs(),
+                        full_logs=log_capture.get_session_logs_str()
                     )
                     
                 except json.JSONDecodeError as json_error:
+                    log_capture.add_log("INFO", "ERROR: JSON parsing failed")
                     logger.error(f"Errore nel parsing JSON: {json_error}")
                     logger.error(f"Risposta AI: {ai_response}")
                     return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
                     
             except Exception as e:
+                log_capture.add_log("INFO", "ERROR: General error")
                 logger.error(f"Errore generale nell'agente unificato: {e}")
                 return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
 
     async def _create_fallback_response(self, session_id: str, user_message: str, current_lifecycle: LifecycleStage, db: AsyncSession) -> LifecycleResponse:
         """Crea una risposta di fallback quando l'AI non è disponibile"""
+        log_capture.add_log("INFO", "FALLBACK MODE - AI unavailable")
+        
         session = await self.get_or_create_session(session_id, db)
         
         fallback_messages = {
@@ -274,7 +319,9 @@ RISPOSTA:"""
             current_lifecycle=current_lifecycle,
             lifecycle_changed=False,
             next_actions=self._get_next_actions(current_lifecycle),
-            ai_reasoning="Risposta di fallback - AI non disponibile"
+            ai_reasoning="Risposta di fallback - AI non disponibile",
+            debug_logs=log_capture.get_session_logs(),
+            full_logs=log_capture.get_session_logs_str()
         )
 
     async def _update_session_lifecycle(self, session: SessionModel, new_lifecycle: LifecycleStage, db: AsyncSession) -> None:

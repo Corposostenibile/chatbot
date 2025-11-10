@@ -161,6 +161,8 @@ async def chat_endpoint(chat_message: ChatMessage):
             previous_lifecycle=lifecycle_response.previous_lifecycle.value if lifecycle_response.previous_lifecycle else None,
             next_actions=lifecycle_response.next_actions,
             ai_reasoning=lifecycle_response.ai_reasoning,
+            debug_logs=lifecycle_response.debug_logs,
+            full_logs=lifecycle_response.full_logs,
             timestamp=str(int(time.time()))
         )
 

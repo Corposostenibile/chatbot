@@ -55,3 +55,5 @@ class LifecycleResponse(BaseModel):
     previous_lifecycle: Optional[LifecycleStage] = None
     next_actions: List[str] = []
     ai_reasoning: str = ""
+    debug_logs: Optional[List[str]] = None
+    full_logs: Optional[str] = None
