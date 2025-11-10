@@ -2,7 +2,7 @@
 Modelli per la gestione dei lifecycle del chatbot
 """
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 
 
@@ -49,7 +49,7 @@ class AIResponse(BaseModel):
 
 class LifecycleResponse(BaseModel):
     """Risposta del sistema con informazioni sul lifecycle"""
-    message: str
+    messages: Union[str, List[Dict[str, Union[str, int]]]]  # Stringa singola o lista di messaggi con delay
     current_lifecycle: LifecycleStage
     lifecycle_changed: bool = False
     previous_lifecycle: Optional[LifecycleStage] = None

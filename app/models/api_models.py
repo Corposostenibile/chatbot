@@ -1,7 +1,7 @@
 """
 Modelli Pydantic per l'API
 """
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from pydantic import BaseModel
 
 
@@ -15,7 +15,7 @@ class ChatMessage(BaseModel):
 
 class ChatResponse(BaseModel):
     """Modello per le risposte del chat"""
-    response: str
+    messages: Union[str, List[Dict[str, Union[str, int]]]]  # Stringa singola o lista di messaggi
     session_id: str
     current_lifecycle: str
     lifecycle_changed: bool = False

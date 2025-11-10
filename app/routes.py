@@ -154,7 +154,7 @@ async def chat_endpoint(chat_message: ChatMessage):
         logger.info(f"Risposta agente unificato per sessione {chat_message.session_id}: {lifecycle_response.message[:100]}...")
 
         return ChatResponse(
-            response=lifecycle_response.message,
+            messages=lifecycle_response.messages,
             session_id=chat_message.session_id,
             current_lifecycle=lifecycle_response.current_lifecycle.value,
             lifecycle_changed=lifecycle_response.lifecycle_changed,

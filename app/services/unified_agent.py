@@ -137,6 +137,8 @@ ISTRUZIONI:
 2. Usa il script come guida ma mantieni la conversazione fluida
 3. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
 4. NON menzionare mai i lifecycle al cliente
+5. PUOI SPEZZETTARE LA TUA RISPOSTA in messaggi multipli per sembrare più umano
+6. Se decidi di spezzettare, specifica i delay tra i messaggi
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
@@ -145,7 +147,10 @@ FORMATO RISPOSTA RICHIESTO:
 Devi rispondere SEMPRE in questo formato JSON:
 
 {{
-    "message": "La tua risposta conversazionale al cliente",
+    "messages": "La tua risposta completa" OPPURE [
+        {{"text": "Prima parte del messaggio", "delay_ms": 1000}},
+        {{"text": "Seconda parte", "delay_ms": 2000}}
+    ],
     "should_change_lifecycle": true/false,
     "new_lifecycle": "{next_stage.value if next_stage else current_lifecycle.value}",
     "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
@@ -153,7 +158,8 @@ Devi rispondere SEMPRE in questo formato JSON:
 }}
 
 IMPORTANTE: 
-- Il campo "message" deve contenere la tua risposta naturale al cliente
+- Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti
+- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo)
 - Cambia lifecycle solo se sei sicuro al 70% o più (confidence >= 0.7)
 - Se non ci sono più lifecycle successivi, mantieni quello corrente
 - La risposta deve essere SEMPRE un JSON valido
@@ -240,13 +246,32 @@ RISPOSTA:"""
                     log_capture.add_log("INFO", "JSON parsed successfully")
                     
                     # Estrai i dati dalla risposta
-                    message = response_data.get("message", "Ciao! Come posso aiutarti oggi?")
+                    messages = response_data.get("messages") or response_data.get("message", "Ciao! Come posso aiutarti oggi?")
                     should_change = response_data.get("should_change_lifecycle", False)
                     new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
                     reasoning = response_data.get("reasoning", "Risposta automatica")
                     confidence = response_data.get("confidence", 0.5)
                     
-                    log_capture.add_log("INFO", f"Decision: change={should_change}, confidence={confidence}")
+                    # Normalizza messages: se è stringa, converti in lista con un elemento
+                    if isinstance(messages, str):
+                        messages = [{"text": messages, "delay_ms": 0}]
+                    elif isinstance(messages, list):
+                        # Assicurati che ogni elemento abbia text e delay_ms
+                        normalized_messages = []
+                        for msg in messages:
+                            if isinstance(msg, dict):
+                                normalized_messages.append({
+                                    "text": msg.get("text", ""),
+                                    "delay_ms": msg.get("delay_ms", 1000)
+                                })
+                            else:
+                                normalized_messages.append({"text": str(msg), "delay_ms": 1000})
+                        messages = normalized_messages
+                    
+                    # Per la cronologia, usa il testo completo concatenato
+                    full_message_text = " ".join([msg["text"] for msg in messages])
+                    
+                    log_capture.add_log("INFO", f"Decision: change={should_change}, confidence={confidence}, messages={len(messages)}")
                     
                     # Determina il nuovo lifecycle
                     lifecycle_changed = False
@@ -265,7 +290,7 @@ RISPOSTA:"""
                             logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
                     
                     # Aggiungi il messaggio alla cronologia
-                    await self._add_to_conversation_history(session, user_message, message, db)
+                    await self._add_to_conversation_history(session, user_message, full_message_text, db)
                     log_capture.add_log("INFO", "Conversation history updated")
                     
                     # Genera next actions
@@ -274,7 +299,7 @@ RISPOSTA:"""
                     log_capture.add_log("INFO", "Response ready")
                     
                     return LifecycleResponse(
-                        message=message,
+                        messages=messages,
                         current_lifecycle=new_lifecycle,
                         lifecycle_changed=lifecycle_changed,
                         previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
@@ -316,7 +341,7 @@ RISPOSTA:"""
         await self._add_to_conversation_history(session, user_message, message, db)
         
         return LifecycleResponse(
-            message=message,
+            messages=[{"text": message, "delay_ms": 0}],
             current_lifecycle=current_lifecycle,
             lifecycle_changed=False,
             next_actions=self._get_next_actions(current_lifecycle),
