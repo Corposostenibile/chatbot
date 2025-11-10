@@ -25,6 +25,21 @@ from app.logger_config import log_capture
 import json as json_lib
 
 
+class ChatbotError(Exception):
+    """Eccezione base per errori del chatbot"""
+    pass
+
+
+class AIError(ChatbotError):
+    """Errore quando l'AI non è disponibile o fallisce"""
+    pass
+
+
+class ParsingError(ChatbotError):
+    """Errore nel parsing della risposta AI"""
+    pass
+
+
 class UnifiedAgent:
     """Agente unificato che gestisce conversazione e lifecycle management"""
     
@@ -38,13 +53,14 @@ class UnifiedAgent:
             # Inizializza il client Google
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
             )
             
             # Inizializza l'agent
             self.agent = Agent(
                 client=self.client,
-                name="UnifiedChatbotAgent",
+                name="Corposostenibile Unified Agent",
+                system_prompt=SYSTEM_PROMPT,
             )
             
             logger.info("UnifiedAgent inizializzato con successo")
@@ -111,7 +127,7 @@ class UnifiedAgent:
         conversation_context = await self._build_conversation_context(session, db)
         
         # Costruisci il prompt unificato
-        unified_prompt = f"""
+        unified_prompt = f"""LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
 OBIETTIVO CORRENTE: {objective}
 
 SCRIPT GUIDA PER QUESTO LIFECYCLE:
@@ -122,39 +138,14 @@ CRONOLOGIA CONVERSAZIONE:
 
 MESSAGGIO UTENTE: {user_message}
 
-ISTRUZIONI:
-1. Rispondi al messaggio dell'utente in modo naturale e utile
-2. Usa il script come guida ma mantieni la conversazione fluida
-3. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
-4. NON menzionare mai i lifecycle al cliente
-5. PUOI SPEZZETTARE LA TUA RISPOSTA in messaggi multipli per sembrare più umano (massimo 3 messaggi)
-6. Se decidi di spezzettare, specifica i delay tra i messaggi
+ISTRUZIONI SPECIFICHE PER QUESTO LIFECYCLE:
+1. Usa il script come guida ma mantieni la conversazione fluida
+2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
+3. Se decidi di spezzettare, specifica i delay tra i messaggi
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
-
-FORMATO RISPOSTA RICHIESTO:
-Devi rispondere SEMPRE in questo formato JSON:
-
-{{
-    "messages": "La tua risposta completa" OPPURE [
-        {{"text": "Prima parte del messaggio", "delay_ms": 1000}},
-        {{"text": "Seconda parte", "delay_ms": 2000}}
-    ],
-    "should_change_lifecycle": true/false,
-    "new_lifecycle": "{next_stage.value if next_stage else current_lifecycle.value}",
-    "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
-    "confidence": 0.0-1.0
-}}
-
-IMPORTANTE: 
-- Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti
-- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo)
-- Cambia lifecycle solo se sei sicuro al 70% o più (confidence >= 0.7)
-- Se non ci sono più lifecycle successivi, mantieni quello corrente
-- La risposta deve essere SEMPRE un JSON valido
-
-RISPOSTA:"""
+"""
 
         return unified_prompt
 
@@ -186,13 +177,7 @@ RISPOSTA:"""
                 
                 # Genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
-                log_capture.add_log("INFO", f"Prompt unificato per sessione {session_id}:")
-                
-                # Log del prompt (line by line)
-                prompt_lines = unified_prompt.split('\n')
-                for line in prompt_lines:
-                    if line.strip():
-                        log_capture.add_log("INFO", f"{line}")
+                log_capture.add_log("INFO", f"SCRIPT GUIDA\n{unified_prompt}")
                 
                 logger.info("-------------------------------------------------")
                 logger.info(f"Prompt unificato per sessione {session_id}:\n{unified_prompt}")
@@ -208,18 +193,11 @@ RISPOSTA:"""
                     ai_response = ai_result.text
                     log_capture.add_log("INFO", "AI response received")
                     
-                    # Log della risposta (prime 15 righe)
-                    response_lines = ai_response.split('\n')[:15]
-                    for line in response_lines:
-                        if line.strip():
-                            log_capture.add_log("INFO", f"{line}")
-                    
                     logger.info(f"Risposta AI ricevuta per sessione {session_id}")
                 except Exception as ai_error:
                     log_capture.add_log("INFO", "ERROR: AI call failed")
                     logger.error(f"Errore con l'AI: {ai_error}")
-                    # Fallback response
-                    return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
+                    raise AIError(f"Errore nell'elaborazione della richiesta AI: {str(ai_error)}")
                 
                 # Parsing della risposta JSON
                 log_capture.add_log("INFO", "Parsing AI response...")
@@ -233,6 +211,7 @@ RISPOSTA:"""
                     cleaned_response = cleaned_response.strip()
                     
                     response_data = json.loads(cleaned_response)
+                    log_capture.add_log("INFO", f"```json\n{json.dumps(response_data, indent=2)}\n```")
                     log_capture.add_log("INFO", "JSON parsed successfully")
                     
                     # Estrai i dati dalla risposta
@@ -269,7 +248,9 @@ RISPOSTA:"""
                     
                     if should_change and confidence >= 0.7:
                         try:
-                            new_lifecycle = LifecycleStage(new_lifecycle_str)
+                            # Normalizza il lifecycle name a lowercase per gestire case sensitivity
+                            normalized_lifecycle_str = new_lifecycle_str.lower()
+                            new_lifecycle = LifecycleStage(normalized_lifecycle_str)
                             if new_lifecycle != session.current_lifecycle:
                                 await self._update_session_lifecycle(session, new_lifecycle, db)
                                 lifecycle_changed = True
@@ -304,42 +285,12 @@ RISPOSTA:"""
                     log_capture.add_log("INFO", "ERROR: JSON parsing failed")
                     logger.error(f"Errore nel parsing JSON: {json_error}")
                     logger.error(f"Risposta AI: {ai_response}")
-                    return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
+                    raise ParsingError(f"Errore nel parsing della risposta AI: {str(json_error)}")
                     
             except Exception as e:
                 log_capture.add_log("INFO", "ERROR: General error")
                 logger.error(f"Errore generale nell'agente unificato: {e}")
-                return await self._create_fallback_response(session_id, user_message, previous_lifecycle, db)
-
-    async def _create_fallback_response(self, session_id: str, user_message: str, current_lifecycle: LifecycleStage, db: AsyncSession) -> LifecycleResponse:
-        """Crea una risposta di fallback quando l'AI non è disponibile"""
-        log_capture.add_log("INFO", "FALLBACK MODE - AI unavailable")
-        
-        session = await self.get_or_create_session(session_id, db)
-        
-        fallback_messages = {
-            LifecycleStage.NUOVA_LEAD: "Ciao! Sono qui per aiutarti con il tuo percorso di benessere. Come posso supportarti oggi?",
-            LifecycleStage.CONTRASSEGNATO: "Capisco la tua situazione. Parlami di più di quello che stai vivendo.",
-            LifecycleStage.IN_TARGET: "È normale sentirsi così. Il nostro approccio integrato di nutrizione e psicologia può davvero aiutarti.",
-            LifecycleStage.LINK_DA_INVIARE: "Perfetto! Ti piacerebbe saperne di più sulla nostra consulenza gratuita?",
-            LifecycleStage.LINK_INVIATO: "Grazie per il tuo interesse! Ti ho inviato il link per prenotare la tua consulenza gratuita."
-        }
-        
-        message = fallback_messages.get(current_lifecycle, "Grazie per il tuo messaggio. Come posso aiutarti?")
-        
-        # Aggiungi alla cronologia
-        await self._add_to_conversation_history(session, user_message, message, db)
-        
-        return LifecycleResponse(
-            messages=[{"text": message, "delay_ms": 0}],
-            current_lifecycle=current_lifecycle,
-            lifecycle_changed=False,
-            next_actions=self._get_next_actions(current_lifecycle),
-            ai_reasoning="Risposta di fallback - AI non disponibile",
-            confidence=0.0,
-            debug_logs=log_capture.get_session_logs(),
-            full_logs=log_capture.get_session_logs_str()
-        )
+                raise ChatbotError(f"Errore interno del chatbot: {str(e)}")
 
     async def _update_session_lifecycle(self, session: SessionModel, new_lifecycle: LifecycleStage, db: AsyncSession) -> None:
         """Aggiorna il lifecycle della sessione"""

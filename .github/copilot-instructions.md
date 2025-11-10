@@ -75,4 +75,5 @@ unified_prompt = f"""...FORMATO RISPOSTA RICHIESTO:
 - `app/data/lifecycle_config.py`: Script fasi e trigger
 - `scripts/local-dev.sh`: Comandi sviluppo
 - `cloudbuild.yaml`: Pipeline CI/CD</content>
-<parameter name="filePath">/home/ubuntu/chatbot/.github/copilot-instructions.md
+
+# IMPORTANTE: Non avviare mai il server, è già attivo!

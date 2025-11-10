@@ -14,7 +14,7 @@ from sqlalchemy import func
 
 from app.config import Settings, get_settings
 from app.models.database_models import SessionModel
-from app.services.unified_agent import unified_agent
+from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
 from app.database import get_db
 import os
@@ -152,7 +152,10 @@ async def chat_endpoint(chat_message: ChatMessage):
         )
 
         # Estrai il testo per il logging
-        log_text = lifecycle_response.messages
+        if isinstance(lifecycle_response.messages, str):
+            log_text = lifecycle_response.messages
+        else:
+            log_text = " ".join([msg.get("text", "") for msg in lifecycle_response.messages])
 
         logger.info(f"Risposta agente unificato per sessione {chat_message.session_id}: {log_text[:100]}...")
 
@@ -170,10 +173,22 @@ async def chat_endpoint(chat_message: ChatMessage):
             timestamp=str(int(time.time()))
         )
 
+    except AIError as e:
+        from app.main import logger
+        logger.error(f"Errore AI nell'endpoint chat per sessione {chat_message.session_id}: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except ParsingError as e:
+        from app.main import logger
+        logger.error(f"Errore parsing nell'endpoint chat per sessione {chat_message.session_id}: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
+    except ChatbotError as e:
+        from app.main import logger
+        logger.error(f"Errore chatbot nell'endpoint chat per sessione {chat_message.session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         from app.main import logger
-        logger.error(f"Errore nell'endpoint chat per sessione {chat_message.session_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Errore interno del server: {str(e)}")
+        logger.error(f"Errore generico nell'endpoint chat per sessione {chat_message.session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status")
