@@ -66,6 +66,24 @@ setup_environment() {
     print_status "Setup completato!"
 }
 
+# Funzione per uccidere il server esistente se attivo
+kill_existing_server() {
+    local port=$1
+    print_status "Controllando se il server è già attivo sulla porta $port..."
+    
+    # Trova i PID che usano la porta
+    local pids=$(lsof -ti:$port 2>/dev/null || true)
+    
+    if [ -n "$pids" ]; then
+        print_warning "Server attivo trovato sulla porta $port (PID: $pids). Uccidendo..."
+        echo "$pids" | xargs kill -9 2>/dev/null || true
+        sleep 2  # Aspetta che il processo termini
+        print_status "Server precedente ucciso."
+    else
+        print_status "Nessun server attivo sulla porta $port."
+    fi
+}
+
 # Funzione per avviare l'app in modalità sviluppo
 run_dev() {
     print_header "Avvio Applicazione (Modalità Sviluppo)"
@@ -75,6 +93,9 @@ run_dev() {
     # Ottieni la porta dalle impostazioni
     PORT=$(get_port)
     print_status "Usando porta: $PORT"
+    
+    # Uccidi il server esistente se attivo
+    kill_existing_server $PORT
     
     # Avvia il database con Docker se non è già attivo
     if ! docker-compose -f docker-compose.dev.yml ps postgres | grep -q "Up"; then

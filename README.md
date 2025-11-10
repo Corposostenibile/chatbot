@@ -16,10 +16,32 @@ Le sessioni e le conversazioni sono persistite in un database PostgreSQL per gar
 - `app/database.py`: Configurazione connessione database
 - `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
 
+## 📊 Visualizzazione Flusso End-to-End
+
+Abbiamo creato una **visualizzazione HTML interattiva** del flusso completo con diagrammi Mermaid!
+
+```bash
+# Avvia il server
+./scripts/run_server.sh
+
+# Poi vai a: http://localhost:8080/flow
+```
+
+**Caratteristiche:**
+- ✅ 8 sezioni navigabili
+- ✅ 6 diagrammi Mermaid interattivi
+- ✅ Timeline dettagliata (ms-level)
+- ✅ Esempio reale con Marco
+- ✅ Responsive design
+- ✅ Zero dipendenze frontend pesanti
+
+[Leggi il Quick Start →](FLOW_VISUALIZATION_START.md) | [Guida Completa →](docs/FLOW_VISUALIZATION_GUIDE.md)
+
 ## Flusso di Sviluppo
 
 - **Setup**: `./scripts/local-dev.sh setup` (installa dipendenze Poetry, crea `.env`)
 - **Esegui localmente**: `./scripts/local-dev.sh dev` (FastAPI nativa con Poetry + PostgreSQL in Docker)
+- **Visualizza Flusso**: `./scripts/run_server.sh` (Avvia server + apri http://localhost:8080/flow)
 - **Test**: `./scripts/local-dev.sh test` (pytest con coverage)
 - **Formatta**: `./scripts/local-dev.sh format` (black + isort + flake8)
 - **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)

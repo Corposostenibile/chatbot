@@ -7,6 +7,9 @@ from datetime import datetime
 from typing import Dict
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import func
 
 from app.config import Settings, get_settings
@@ -14,6 +17,7 @@ from app.models.database_models import SessionModel
 from app.services.unified_agent import unified_agent
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
 from app.database import get_db
+import os
 
 # Crea il router
 router = APIRouter()
@@ -26,8 +30,65 @@ async def root():
     return {
         "message": "Chatbot API",
         "version": settings.app_version,
-        "status": "running"
+        "status": "running",
+        "docs": "Visita /docs per la documentazione API",
+        "flow_visualization": "Visita /flow per la visualizzazione del flusso end-to-end"
     }
+
+
+@router.get("/flow", response_class=HTMLResponse)
+async def flow_visualization():
+    """Endpoint che espone la visualizzazione del flusso end-to-end con Jinja2 e Mermaid"""
+    try:
+        # Ottieni il percorso del template
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+        
+        # Verifica che la directory templates esista
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=500, detail="Template directory not found")
+        
+        # Leggi il file HTML direttamente
+        template_path = os.path.join(templates_dir, "flow_visualization.html")
+        
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="Flow visualization template not found")
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+        
+        # Inizializza Jinja2
+        env = Environment(loader=FileSystemLoader(templates_dir))
+        template = env.from_string(html_content)
+        
+        # Prepara i dati del template
+        settings = get_settings()
+        
+        # Conta sessioni attive
+        async for db in get_db():
+            result = await db.execute(
+                func.count(SessionModel.id)
+            )
+            active_sessions = result.scalar()
+        
+        # Renderizza il template
+        rendered_html = template.render(
+            app_name=settings.app_name,
+            app_version=settings.app_version,
+            active_sessions=active_sessions,
+            debug=settings.debug
+        )
+        
+        return rendered_html
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering del flow visualization: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Errore nel caricamento della visualizzazione del flusso: {str(e)}"
+        )
 
 
 @router.get("/health", response_model=HealthCheck)
