@@ -247,27 +247,6 @@ docker-compose logs -f
 ./scripts/ssl.sh check
 ```
 
-### Backup e Restore
-
-#### Backup Database
-```bash
-# Backup PostgreSQL
-docker-compose exec postgres pg_dump -U chatbot chatbot > backup_$(date +%Y%m%d_%H%M%S).sql
-
-# Backup completo (incluso SSL)
-tar -czf backup_complete_$(date +%Y%m%d_%H%M%S).tar.gz \
-  ssl/ \
-  webroot/ \
-  postgres_data/ \
-  .env
-```
-
-#### Restore Database
-```bash
-# Restore PostgreSQL
-docker-compose exec -T postgres psql -U chatbot chatbot < backup.sql
-```
-
 ### Monitoraggio
 
 #### Health Checks
@@ -470,7 +449,6 @@ add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 ### Checklist Manutenzione Mensile
 
 - [ ] Verifica scadenza SSL (>30 giorni)
-- [ ] Backup database
 - [ ] Aggiornamenti sicurezza
 - [ ] Test funzionalità complete
 - [ ] Verifica logs per errori
@@ -527,18 +505,6 @@ ln -sf scripts/server.sh server
 ./server ssl-check
 ```
 
-#### Backup e Restore
-```bash
-# Creazione backup completo
-./server backup-create
-
-# Lista backup disponibili
-./server backup-list
-
-# Ripristino da backup
-./server backup-restore backups/backup_20241111_120000.tar.gz
-```
-
 #### Monitoraggio
 ```bash
 # Controlli health automatici
@@ -575,7 +541,6 @@ ln -sf scripts/server.sh server
 ```bash
 ./server server-status
 ./server ssl-check
-./server backup-create
 ```
 
 #### Manutenzione Settimanale
@@ -595,8 +560,6 @@ crontab -e
 # Aggiungi queste righe:
 # Health check ogni ora
 0 * * * * /home/manu/chatbot/server monitor-health >> /home/manu/chatbot/logs/health.log 2>&1
-# Backup giornaliero alle 2:00
-0 2 * * * /home/manu/chatbot/server backup-create
 # Rinnovo SSL giornaliero (già configurato automaticamente)
 ```
 
@@ -611,7 +574,6 @@ Lo script genera log automatici in `logs/`:
 
 Lo script include controlli di sicurezza automatici:
 - ✅ Verifica dipendenze prima di ogni operazione
-- ✅ Backup automatici prima di aggiornamenti
 - ✅ Validazione SSL e certificati
 - ✅ Controlli integrità file di configurazione
 

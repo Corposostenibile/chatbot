@@ -7,7 +7,6 @@ Questo script fornisce un'interfaccia unificata per gestire completamente il ser
 Lo script `server.sh` automatizza tutte le operazioni di:
 - ✅ Gestione server (avvio/arresto/riavvio)
 - ✅ Configurazione SSL Let's Encrypt
-- ✅ Backup e restore del sistema
 - ✅ Monitoraggio e health checks
 - ✅ Troubleshooting automatico
 - ✅ Manutenzione e aggiornamenti
@@ -50,7 +49,6 @@ ln -sf scripts/server.sh server
 ### Gestione Quotidiana
 ```bash
 ./server server-status   # Controlla status
-./server backup-create   # Backup giornaliero
 ./server ssl-check      # Verifica SSL
 ```
 
@@ -75,7 +73,6 @@ Lo script include monitoraggio completo:
 ```bash
 # Aggiungi al crontab (crontab -e):
 0 * * * * /home/manu/chatbot/server monitor-health  # Ogni ora
-0 2 * * * /home/manu/chatbot/server backup-create   # Giornaliero
 ```
 
 ### Rinnovo SSL Automatico
@@ -85,7 +82,6 @@ Configurato automaticamente durante `ssl-setup` per rinnovare ogni giorno a mezz
 
 ```
 logs/           # Log operazioni
-backups/        # Backup automatici
 ssl/           # Certificati SSL
 webroot/       # Challenge Let's Encrypt
 ```
@@ -98,7 +94,6 @@ webroot/       # Challenge Let's Encrypt
 
 ## 🔒 Sicurezza
 
-- Backup automatici prima di modifiche
 - Validazione certificati SSL
 - Controlli integrità configurazione
 - Accesso root limitato alle operazioni necessarie

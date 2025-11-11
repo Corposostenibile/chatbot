@@ -1,13 +1,12 @@
 #!/bin/bash
 
 # 🚀 Script di Gestione Completo Server Chatbot
-# Gestisce Nginx, SSL, Docker, Database, Backup e Monitoraggio
+# Gestisce Nginx, SSL, Docker e Monitoraggio
 set -e
 
 # Configurazione
 DOMAIN="corposostenibile.duckdns.org"
 PROJECT_DIR="/home/manu/chatbot"
-BACKUP_DIR="$PROJECT_DIR/backups"
 LOG_DIR="$PROJECT_DIR/logs"
 WEBROOT_DIR="$PROJECT_DIR/webroot"
 SSL_DIR="$PROJECT_DIR/ssl"
@@ -82,7 +81,7 @@ check_project_dir() {
 create_directories() {
     print_subheader "Creazione Directory Necessarie"
 
-    mkdir -p "$BACKUP_DIR" "$LOG_DIR" "$WEBROOT_DIR/.well-known/acme-challenge"
+    mkdir -p "$LOG_DIR" "$WEBROOT_DIR/.well-known/acme-challenge"
 
     # Imposta permessi
     chmod 755 "$WEBROOT_DIR"
@@ -347,135 +346,6 @@ setup_ssl_cron() {
 }
 
 # ===============================
-# GESTIONE BACKUP
-# ===============================
-
-backup_create() {
-    print_header "💾 CREAZIONE BACKUP"
-
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    local backup_file="$BACKUP_DIR/backup_$timestamp.tar.gz"
-
-    print_subheader "Creazione Directory Backup"
-    mkdir -p "$BACKUP_DIR"
-
-    print_subheader "Backup Database"
-    local db_backup="$BACKUP_DIR/db_$timestamp.sql"
-    docker-compose exec -T postgres pg_dump -U chatbot chatbot > "$db_backup"
-
-    if [ $? -eq 0 ]; then
-        print_status "Database backup creato: $db_backup"
-    else
-        print_error "Errore nel backup del database"
-        rm -f "$db_backup"
-        exit 1
-    fi
-
-    print_subheader "Backup File Sistema"
-    tar -czf "$backup_file" \
-        --exclude='backups' \
-        --exclude='logs' \
-        --exclude='*.log' \
-        --exclude='.git' \
-        ssl/ \
-        webroot/ \
-        nginx.conf \
-        docker-compose*.yml \
-        .env \
-        "$db_backup"
-
-    if [ $? -eq 0 ]; then
-        print_status "Backup completo creato: $backup_file"
-
-        # Calcola dimensione
-        local size=$(du -h "$backup_file" | cut -f1)
-        print_info "Dimensione backup: $size"
-
-        # Pulisci backup database temporaneo
-        rm -f "$db_backup"
-
-        # Mantieni solo gli ultimi 10 backup
-        print_subheader "Pulizia Vecchi Backup"
-        ls -t "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null | tail -n +11 | xargs -r rm -f
-        print_status "Mantenuti ultimi 10 backup"
-    else
-        print_error "Errore nella creazione del backup"
-        rm -f "$backup_file" "$db_backup"
-        exit 1
-    fi
-}
-
-backup_list() {
-    print_header "📋 ELENCO BACKUP"
-
-    if [ -d "$BACKUP_DIR" ]; then
-        echo "Backup disponibili in $BACKUP_DIR:"
-        ls -la "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null || echo "Nessun backup trovato"
-    else
-        print_warning "Directory backup non esistente"
-    fi
-}
-
-backup_restore() {
-    local backup_file="$1"
-
-    if [ -z "$backup_file" ]; then
-        print_error "Specifica il file di backup da ripristinare"
-        echo "Uso: $0 backup-restore <file_backup.tar.gz>"
-        backup_list
-        exit 1
-    fi
-
-    if [ ! -f "$backup_file" ]; then
-        print_error "File backup non trovato: $backup_file"
-        exit 1
-    fi
-
-    print_header "🔄 RIPRISTINO BACKUP"
-    print_warning "ATTENZIONE: Questa operazione sovrascriverà i dati esistenti!"
-
-    read -p "Sei sicuro di voler ripristinare il backup? (y/N): " -r
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Ripristino annullato"
-        exit 0
-    fi
-
-    print_subheader "Arresto Servizi"
-    server_stop
-
-    print_subheader "Estrazione Backup"
-    local temp_dir=$(mktemp -d)
-    tar -xzf "$backup_file" -C "$temp_dir"
-
-    print_subheader "Ripristino File Sistema"
-    cp -r "$temp_dir/ssl" ./
-    cp -r "$temp_dir/webroot" ./
-    cp "$temp_dir/nginx.conf" ./
-    cp "$temp_dir/docker-compose.yml" ./
-    cp "$temp_dir/docker-compose.override.yml" ./
-    cp "$temp_dir/.env" ./
-
-    print_subheader "Ripristino Database"
-    local db_backup=$(find "$temp_dir" -name "db_*.sql" | head -1)
-    if [ -n "$db_backup" ] && [ -f "$db_backup" ]; then
-        docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d postgres
-        sleep 5
-        docker-compose exec -T postgres psql -U chatbot chatbot < "$db_backup"
-        print_status "Database ripristinato"
-    else
-        print_warning "Backup database non trovato nel file"
-    fi
-
-    print_subheader "Pulizia"
-    rm -rf "$temp_dir"
-
-    print_subheader "Riavvio Servizi"
-    server_start
-
-    print_status "Ripristino completato"
-}
-
-# ===============================
 # MONITORAGGIO
 # ===============================
 
@@ -664,9 +534,6 @@ troubleshoot() {
 maintenance_update() {
     print_header "🔄 AGGIORNAMENTO SISTEMA"
 
-    print_subheader "Backup Pre-Aggiornamento"
-    backup_create
-
     print_subheader "Aggiornamento Immagini Docker"
     docker-compose pull
 
@@ -681,7 +548,6 @@ maintenance_update() {
         print_status "Aggiornamento completato con successo"
     else
         print_error "Problemi dopo l'aggiornamento - controlla i log"
-        print_info "Rollback possibile con: $0 backup-restore <backup_file>"
     fi
 }
 
@@ -702,9 +568,6 @@ maintenance_cleanup() {
 
     print_subheader "Pulizia Log Vecchi"
     find "$LOG_DIR" -name "*.log" -mtime +30 -delete 2>/dev/null || true
-
-    print_subheader "Pulizia Backup Vecchi (mantieni ultimi 5)"
-    ls -t "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null | tail -n +6 | xargs -r rm -f
 
     print_status "Pulizia completata"
 }
@@ -732,11 +595,6 @@ show_help() {
     echo "  ssl-renew              Rinnova certificato SSL"
     echo "  ssl-check              Verifica configurazione SSL"
     echo ""
-    echo "💾 BACKUP:"
-    echo "  backup-create          Crea backup completo"
-    echo "  backup-list            Elenca backup disponibili"
-    echo "  backup-restore <file>  Ripristina da backup"
-    echo ""
     echo "📊 MONITORAGGIO:"
     echo "  monitor-health         Controlli health automatici"
     echo "  monitor-resources      Monitoraggio risorse"
@@ -754,7 +612,6 @@ show_help() {
     echo "ESEMPI:"
     echo "  $0 server-start        # Avvia il server"
     echo "  $0 ssl-setup          # Setup SSL"
-    echo "  $0 backup-create      # Crea backup"
     echo "  $0 monitor-health     # Controlla health"
     echo "  $0 server-logs nginx  # Logs Nginx"
     echo ""
@@ -774,11 +631,6 @@ case "${1:-help}" in
     ssl-setup) ssl_setup ;;
     ssl-renew) ssl_renew ;;
     ssl-check) ssl_check ;;
-
-    # Backup
-    backup-create) backup_create ;;
-    backup-list) backup_list ;;
-    backup-restore) backup_restore "$2" ;;
 
     # Monitoraggio
     monitor-health) monitor_health ;;
