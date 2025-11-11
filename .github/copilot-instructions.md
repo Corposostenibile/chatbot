@@ -14,10 +14,10 @@ Le sessioni e le conversazioni sono persistite in un database PostgreSQL per gar
 - `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
 
 ## Flusso di Sviluppo
-- **Setup**: `./scripts/local-dev.sh setup` (installa dipendenze Poetry, crea `.env`)
-- **Esegui localmente**: `./scripts/local-dev.sh dev` (Poetry + uvicorn con reload)
-- **Test**: `./scripts/local-dev.sh test` (pytest con coverage)
-- **Formatta**: `./scripts/local-dev.sh format` (black + isort + flake8)
+- **Setup**: `./scripts/server.sh setup` (installa dipendenze Poetry, crea `.env`)
+- **Esegui localmente**: `./scripts/server.sh dev` (Poetry + uvicorn con reload)
+- **Test**: `./scripts/server.sh test` (pytest con coverage)
+- **Formatta**: `./scripts/server.sh format` (black + isort + flake8)
 - **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)
 
 ## Pattern di Codifica
@@ -73,7 +73,7 @@ unified_prompt = f"""...FORMATO RISPOSTA RICHIESTO:
 ## File Chiave da Riferire
 - `app/services/unified_agent.py`: Logica conversazione AI
 - `app/data/lifecycle_config.py`: Script fasi e trigger
-- `scripts/local-dev.sh`: Comandi sviluppo
+- `scripts/server.sh`: Comandi sviluppo
 - `cloudbuild.yaml`: Pipeline CI/CD</content>
 
 # IMPORTANTE: Non avviare mai il server, è già attivo!

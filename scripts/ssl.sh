@@ -109,7 +109,7 @@ get_certificate() {
     # Test HTTP connectivity
     if ! curl -f --max-time 10 "http://$domain:8081" >/dev/null 2>&1; then
         print_error "❌ Il dominio $domain non risponde su HTTP. Verifica:"
-        print_error "   - Che il server sia avviato: ./scripts/local-dev.sh docker-dev"
+        print_error "   - Che il server sia avviato: ./scripts/server.sh docker-dev"
         print_error "   - Che le porte 80/443 siano aperte sul firewall/router"
         exit 1
     fi

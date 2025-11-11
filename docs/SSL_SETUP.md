@@ -5,7 +5,7 @@ Questo documento spiega come configurare SSL gratuito con Let's Encrypt per rice
 
 ## Prerequisiti
 - Dominio DuckDNS configurato: `corposostenibile.duckdns.org`
-- Applicazione avviata con `./scripts/local-dev.sh docker-dev`
+- Applicazione avviata con `./scripts/server.sh docker-dev`
 - Nginx attivo e funzionante
 
 ## Setup SSL Automatico
@@ -13,10 +13,10 @@ Questo documento spiega come configurare SSL gratuito con Let's Encrypt per rice
 ### 1. Setup Completo SSL
 ```bash
 # Assicurati che l'app sia avviata
-./scripts/local-dev.sh docker-dev
+./scripts/server.sh docker-dev
 
 # Poi fai il setup SSL
-./scripts/local-dev.sh ssl-setup
+./scripts/server.sh ssl-setup
 ```
 
 Questo comando:
@@ -33,12 +33,12 @@ Questo comando:
 
 ### 2. Verifica Configurazione
 ```bash
-./scripts/local-dev.sh ssl-check
+./scripts/server.sh ssl-check
 ```
 
 ### 3. Rinnovo Manuale (se necessario)
 ```bash
-./scripts/local-dev.sh ssl-renew
+./scripts/server.sh ssl-renew
 ```
 
 ## Rinnovo Automatico
@@ -81,13 +81,13 @@ curl -k -X POST https://corposostenibile.duckdns.org/chat \
 ## Troubleshooting
 
 ### Errore "Connection refused"
-- Assicurati che l'app sia avviata: `./scripts/local-dev.sh docker-dev`
+- Assicurati che l'app sia avviata: `./scripts/server.sh docker-dev`
 - Verifica che Nginx sia attivo: `docker-compose ps`
 
 ### Errore Certificato
 - Ricontrolla che il dominio DuckDNS sia corretto
 - Verifica che le porte 80 e 443 siano aperte sul firewall
-- Riprova setup: `./scripts/local-dev.sh ssl-setup`
+- Riprova setup: `./scripts/server.sh ssl-setup`
 
 ### Errore Webroot
 - Verifica che la directory `webroot` esista: `ls -la webroot/`
