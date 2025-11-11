@@ -10,7 +10,7 @@ from typing import Dict
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from jinja2 import Environment, FileSystemLoader
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import func
 
 from app.config import Settings, get_settings
@@ -26,7 +26,8 @@ from concurrent.futures import ThreadPoolExecutor
 router = APIRouter()
 
 # Configurazione template Jinja2
-templates = Jinja2Templates(directory="app/templates")
+templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+templates = Jinja2Templates(directory=templates_dir)
 
 
 @router.get("/", response_class=HTMLResponse)
