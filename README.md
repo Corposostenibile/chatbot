@@ -37,14 +37,21 @@ Abbiamo creato una **visualizzazione HTML interattiva** del flusso completo con 
 
 [Leggi il Quick Start →](FLOW_VISUALIZATION_START.md) | [Guida Completa →](docs/FLOW_VISUALIZATION_GUIDE.md)
 
-## Flusso di Sviluppo
+## 🔒 Configurazione SSL per Webhook
 
-- **Setup**: `./scripts/local-dev.sh setup` (installa dipendenze Poetry, crea `.env`)
-- **Esegui localmente**: `./scripts/local-dev.sh dev` (FastAPI nativa con Poetry + PostgreSQL in Docker)
-- **Visualizza Flusso**: `./scripts/run_server.sh` (Avvia server + apri http://localhost:8080/flow)
-- **Test**: `./scripts/local-dev.sh test` (pytest con coverage)
-- **Formatta**: `./scripts/local-dev.sh format` (black + isort + flake8)
-- **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)
+Per ricevere webhook sicuri da respond.io, configura SSL gratuito con Let's Encrypt:
+
+```bash
+# Setup completo SSL
+./scripts/local-dev.sh ssl-setup
+
+# Verifica configurazione
+./scripts/local-dev.sh ssl-check
+```
+
+**URL Webhook Sicuro:** `https://corposostenibile.duckdns.org/chat`
+
+[Guida Completa SSL →](docs/SSL_SETUP.md)
 
 ## Tech Stack
 

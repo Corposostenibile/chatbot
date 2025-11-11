@@ -25,11 +25,11 @@ if ! python -m pip show fastapi > /dev/null 2>&1; then
 fi
 
 # Avvia il server
-echo "🌐 Server avviato su http://localhost:8080"
-echo "📊 Visualizzazione flusso: http://localhost:8080/flow"
-echo "📖 Documentazione API: http://localhost:8080/docs"
+echo "🌐 Server avviato su http://localhost:8081"
+echo "📊 Visualizzazione flusso: http://localhost:8081/flow"
+echo "📖 Documentazione API: http://localhost:8081/docs"
 echo ""
 echo "Premi Ctrl+C per fermare il server"
 echo ""
 
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload

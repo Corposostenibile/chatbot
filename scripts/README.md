@@ -52,7 +52,7 @@ Script per avviare l'ambiente di sviluppo locale
 
 ## Prerequisiti
 
-- Server chatbot in esecuzione su `localhost:8080`
+- Server chatbot in esecuzione su `localhost:8081`
 - `curl` installato
 - Bash shell
 
@@ -76,7 +76,7 @@ Se gli script falliscono:
 
 2. **Controlla i log del server**
 
-3. **Verifica la porta corretta** (8080 di default)
+3. **Verifica la porta corretta** (8081 di default)
 
 ## Esempi di Output
 
@@ -85,7 +85,7 @@ Se gli script falliscono:
 🚀 Inizio test del flusso completo del chatbot
 📋 Session ID: test_flow_1762159561
 👤 User ID: test_user_flow
-🌐 Base URL: http://localhost:8080
+🌐 Base URL: http://localhost:8081
 
 📤 STEP 1: Invio messaggio
 💬 Messaggio: "Ciao"

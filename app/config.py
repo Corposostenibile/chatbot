@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     
     # Configurazione server
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 8081
     
     # Configurazione sicurezza
     secret_key: str = "your-secret-key-here-change-in-production"

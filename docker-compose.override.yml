@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8081 --reload
     volumes:
       # Mount del codice per hot reload
       - ./app:/app/app
@@ -18,7 +18,7 @@ services:
       - DEBUG=true
       - LOG_LEVEL=debug
       - HOST=0.0.0.0
-      - PORT=8080
+      - PORT=8081
       # Database URL per Docker - usa il nome del servizio come host
       - DATABASE_URL=postgresql+asyncpg://chatbot:password@postgres:5432/chatbot
       # Per il reload di Uvicorn
@@ -27,14 +27,14 @@ services:
     stdin_open: true
     tty: true
     ports:
-      - "8080:8080"
+      - "8081:8081"
     restart: unless-stopped
     depends_on:
       - postgres
     networks:
       - chatbot-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8081/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,6 +59,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./ssl:/etc/letsencrypt
+      - ./webroot:/var/www/html
+    depends_on:
+      - chatbot
+    restart: unless-stopped
+    networks:
+      - chatbot-net
 
 volumes:
   postgres_data:

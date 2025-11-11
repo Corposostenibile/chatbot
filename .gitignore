@@ -158,5 +158,9 @@ poetry.lock
 # Docker
 .dockerignore
 
+# SSL Certificates and configs
+ssl/
+webroot/
+
 # Google Cloud
 .gcloudignore

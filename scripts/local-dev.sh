@@ -30,9 +30,9 @@ print_header() {
 get_port() {
     if [ -f .env ]; then
         PORT=$(grep '^PORT=' .env | cut -d '=' -f2 | tr -d '"')
-        echo "${PORT:-8080}"  # Default a 8080 se non trovato
+        echo "${PORT:-8081}"  # Default a 8081 se non trovato
     else
-        echo "8080"
+        echo "8081"
     fi
 }
 
@@ -276,7 +276,7 @@ run_docker_dev() {
     sleep 3
     
     print_status "✅ Applicazione avviata in background!"
-    print_status "📍 Accedi all'app su http://localhost:8080"
+    print_status "📍 Accedi all'app su http://localhost:8081"
     print_status ""
     print_status "Comandi utili:"
     print_status "  Visualizza i log:  docker-compose logs -f chatbot"
@@ -284,14 +284,28 @@ run_docker_dev() {
     print_status "  Visualizza status: docker-compose ps"
 }
 
-# Funzione per fermare il database
-stop_db() {
-    print_header "Fermando Database"
+# Funzione per setup SSL
+setup_ssl() {
+    print_header "Setup SSL Let's Encrypt"
     
-    print_status "Fermando PostgreSQL..."
-    docker-compose -f docker-compose.dev.yml down
+    print_status "Avviando setup SSL completo..."
+    ./scripts/ssl.sh setup
+}
+
+# Funzione per rinnovo SSL
+renew_ssl() {
+    print_header "Rinnovo Certificato SSL"
     
-    print_status "Database fermato"
+    print_status "Rinnovando certificato SSL..."
+    ./scripts/ssl.sh renew
+}
+
+# Funzione per verifica SSL
+check_ssl() {
+    print_header "Verifica Configurazione SSL"
+    
+    print_status "Verificando configurazione SSL..."
+    ./scripts/ssl.sh check
 }
 
 # Funzione per eseguire i test
@@ -330,6 +344,9 @@ show_help() {
     echo "  setup           - Configura l'ambiente di sviluppo"
     echo "  dev             - Avvia l'applicazione in modalità sviluppo locale (con DB Docker)"
     echo "  docker-dev      - Avvia l'applicazione completamente in Docker (con reload)"
+    echo "  ssl-setup       - Setup completo SSL con Let's Encrypt"
+    echo "  ssl-renew       - Rinnova certificato SSL"
+    echo "  ssl-check       - Verifica configurazione SSL"
     echo "  test            - Esegue i test"
     echo "  test-db         - Test connessione database"
     echo "  test-lifecycle  - Test flusso completo lifecycle"
@@ -341,6 +358,8 @@ show_help() {
     echo "  $0 setup          # Prima configurazione"
     echo "  $0 dev            # Sviluppo locale con DB Docker"
     echo "  $0 docker-dev     # Sviluppo completamente in Docker"
+    echo "  $0 ssl-setup      # Setup SSL completo"
+    echo "  $0 ssl-check      # Verifica SSL"
     echo "  $0 test           # Esegui test"
     echo "  $0 test-db        # Test connessione DB"
     echo "  $0 test-lifecycle # Test flusso lifecycle"
@@ -356,6 +375,15 @@ case "${1:-help}" in
         ;;
     docker-dev)
         run_docker_dev
+        ;;
+    ssl-setup)
+        setup_ssl
+        ;;
+    ssl-renew)
+        renew_ssl
+        ;;
+    ssl-check)
+        check_ssl
         ;;
     test)
         run_tests

@@ -35,7 +35,7 @@ RUN VENV_PATH=$(poetry env info --path) && \
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Esponi la porta
-EXPOSE 8080
+EXPOSE 8081
 
 # Comando per avviare l'applicazione
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
