@@ -10,6 +10,7 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from loguru import logger
 
 from .config import Settings, settings
@@ -71,6 +72,9 @@ app = FastAPI(
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
 )
+
+# Configurazione template Jinja2
+templates = Jinja2Templates(directory="app/templates")
 
 # Includi le routes
 app.include_router(router)

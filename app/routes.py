@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
@@ -25,43 +25,26 @@ from concurrent.futures import ThreadPoolExecutor
 # Crea il router
 router = APIRouter()
 
+# Configurazione template Jinja2
+templates = Jinja2Templates(directory="app/templates")
+
 
 @router.get("/", response_class=HTMLResponse)
-async def root():
+async def root(request: Request):
     """Dashboard di monitoraggio principale"""
     try:
-        # Ottieni il percorso del template
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-
-        # Verifica che la directory templates esista
-        if not os.path.exists(templates_dir):
-            raise HTTPException(status_code=500, detail="Template directory not found")
-
-        # Leggi il template di monitoraggio
-        template_path = os.path.join(templates_dir, "monitoring_dashboard.html")
-
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail="Monitoring dashboard template not found")
-
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-
-        # Inizializza Jinja2
-        env = Environment(loader=FileSystemLoader(templates_dir))
-        template = env.from_string(html_content)
-
         # Prepara i dati del template
         settings = get_settings()
 
         # Renderizza il template
-        rendered_html = template.render(
-            app_version=settings.app_version
+        return templates.TemplateResponse(
+            "monitoring_dashboard.html",
+            {
+                "request": request,
+                "app_version": settings.app_version
+            }
         )
 
-        return rendered_html
-
-    except HTTPException:
-        raise
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel rendering della dashboard di monitoraggio: {e}")
@@ -72,84 +55,46 @@ async def root():
 
 
 @router.get("/flow", response_class=HTMLResponse)
-async def flow_visualization():
+async def flow_visualization(request: Request):
     """Endpoint che espone la visualizzazione del flusso end-to-end con Jinja2 e Mermaid"""
     try:
-        # Ottieni il percorso del template
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-        
-        # Verifica che la directory templates esista
-        if not os.path.exists(templates_dir):
-            raise HTTPException(status_code=500, detail="Template directory not found")
-        
-        # Leggi il file HTML direttamente
-        template_path = os.path.join(templates_dir, "flow_visualization.html")
-        
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail="Flow visualization template not found")
-        
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        
-        # Inizializza Jinja2
-        env = Environment(loader=FileSystemLoader(templates_dir))
-        template = env.from_string(html_content)
-        
         # Prepara i dati del template
         settings = get_settings()
-        
+
         # Conta sessioni attive
         async for db in get_db():
             result = await db.execute(
                 func.count(SessionModel.id)
             )
             active_sessions = result.scalar()
-        
+
         # Renderizza il template
-        rendered_html = template.render(
-            app_name=settings.app_name,
-            app_version=settings.app_version,
-            active_sessions=active_sessions,
-            debug=settings.debug
+        return templates.TemplateResponse(
+            "flow_visualization.html",
+            {
+                "request": request,
+                "app_name": settings.app_name,
+                "app_version": settings.app_version,
+                "active_sessions": active_sessions,
+                "debug": settings.debug
+            }
         )
-        
-        return rendered_html
-    
-    except HTTPException:
-        raise
+
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel rendering del flow visualization: {e}")
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Errore nel caricamento della visualizzazione del flusso: {str(e)}"
         )
 
 
 @router.get("/preview", response_class=HTMLResponse)
-async def preview():
+async def preview(request: Request):
     """Endpoint per testare la rotta /chat con un'interfaccia web"""
     try:
-        # Ottieni il percorso del template
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-        
-        # Verifica che la directory templates esista
-        if not os.path.exists(templates_dir):
-            raise HTTPException(status_code=500, detail="Template directory not found")
-        
-        # Leggi il file HTML direttamente
-        template_path = os.path.join(templates_dir, "chat.html")
-        
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail="Chat test template not found")
-        
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-        
-        return html_content
-    
-    except HTTPException:
-        raise
+        return templates.TemplateResponse("chat.html", {"request": request})
+
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel caricamento del template di test chat: {e}")
@@ -160,29 +105,9 @@ async def preview():
 
 
 @router.get("/sessions", response_class=HTMLResponse)
-async def sessions_dashboard():
+async def sessions_dashboard(request: Request):
     """Dashboard per visualizzare tutte le sessioni salvate nel database"""
     try:
-        # Ottieni il percorso del template
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-
-        # Verifica che la directory templates esista
-        if not os.path.exists(templates_dir):
-            raise HTTPException(status_code=500, detail="Template directory not found")
-
-        # Leggi il template delle sessioni
-        template_path = os.path.join(templates_dir, "sessions.html")
-
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail="Sessions template not found")
-
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-
-        # Inizializza Jinja2
-        env = Environment(loader=FileSystemLoader(templates_dir))
-        template = env.from_string(html_content)
-
         # Ottieni tutte le sessioni con i relativi messaggi
         async for db in get_db():
             # Query per ottenere sessioni con conteggio messaggi
@@ -221,16 +146,16 @@ async def sessions_dashboard():
         settings = get_settings()
 
         # Renderizza il template
-        rendered_html = template.render(
-            sessions=sessions,
-            app_version=settings.app_version,
-            total_sessions=len(sessions)
+        return templates.TemplateResponse(
+            "sessions.html",
+            {
+                "request": request,
+                "sessions": sessions,
+                "app_version": settings.app_version,
+                "total_sessions": len(sessions)
+            }
         )
 
-        return rendered_html
-
-    except HTTPException:
-        raise
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel rendering della dashboard sessioni: {e}")
@@ -241,29 +166,9 @@ async def sessions_dashboard():
 
 
 @router.get("/session/{session_id}/messages", response_class=HTMLResponse)
-async def session_conversation(session_id: str):
+async def session_conversation(session_id: str, request: Request):
     """Visualizza la conversazione completa di una sessione specifica"""
     try:
-        # Ottieni il percorso del template
-        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
-
-        # Verifica che la directory templates esista
-        if not os.path.exists(templates_dir):
-            raise HTTPException(status_code=500, detail="Template directory not found")
-
-        # Leggi il template della conversazione
-        template_path = os.path.join(templates_dir, "conversation.html")
-
-        if not os.path.exists(template_path):
-            raise HTTPException(status_code=404, detail="Conversation template not found")
-
-        with open(template_path, 'r', encoding='utf-8') as f:
-            html_content = f.read()
-
-        # Inizializza Jinja2
-        env = Environment(loader=FileSystemLoader(templates_dir))
-        template = env.from_string(html_content)
-
         # Ottieni la sessione e i suoi messaggi
         async for db in get_db():
             # Ottieni informazioni sulla sessione
@@ -316,13 +221,15 @@ async def session_conversation(session_id: str):
         settings = get_settings()
 
         # Renderizza il template
-        rendered_html = template.render(
-            session=session_info,
-            messages=messages,
-            app_version=settings.app_version
+        return templates.TemplateResponse(
+            "conversation.html",
+            {
+                "request": request,
+                "session": session_info,
+                "messages": messages,
+                "app_version": settings.app_version
+            }
         )
-
-        return rendered_html
 
     except HTTPException:
         raise
