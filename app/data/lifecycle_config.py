@@ -33,6 +33,8 @@ ISTRUZIONI GENERALI:
 7. NON menzionare mai i lifecycle o il processo tecnico
 8. Quando hai nome, obiettivo, età e storia passata, puoi passare a IN_TARGET
 9. FAI SEMPRE UNA DOMANDA alla fine del tuo messaggio per continuare la conversazione e mantenere il dialogo attivo e non arrivare mai ad un punto morto
+10. IMPORTANTE: Nel lifecycle LINK_DA_INVIARE, passa SUBITO a LINK_INVIATO al primo segno positivo dell'utente (si, magari, va bene, ok, preferenze di orario) - NON chiedere ulteriori conferme
+11. CRITICO: NUOVA_LEAD è solo un messaggio automatico di benvenuto - passa SUBITO a CONTRASSEGNATO alla prima risposta dell'utente (anche solo un saluto)
 
 FORMATO RISPOSTA RICHIESTO:
 Devi rispondere SEMPRE in questo formato JSON:
@@ -76,10 +78,7 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         "next_stage": LifecycleStage.CONTRASSEGNATO,
         "objective": "Ringraziare e raccogliere informazioni base: nome, obiettivo specifico, tentativi passati, età",
         "transition_indicators": [
-            "Il cliente ha fornito il suo nome",
-            "Il cliente ha descritto il suo obiettivo specifico",
-            "Il cliente ha condiviso cosa ha provato prima",
-            "Il cliente ha fornito la sua età"
+            "Appena l'utente scrive per primo, ad es: Ciao! Ti ho visto su Facebook, volevo maggiori informazioni",
         ]
     },
     
@@ -142,9 +141,11 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         "next_stage": LifecycleStage.LINK_INVIATO,
         "objective": "Spiegare la consulenza e ottenere conferma per l'invio del link",
         "transition_indicators": [
-            "Il cliente ha confermato di voler prenotare",
-            "Il cliente ha chiesto come procedere",
-            "Il cliente ha mostrato disponibilità a ricevere il link"
+            "Il cliente ha confermato interesse con parole come 'si', 'magari', 'va bene', 'ok'",
+            "Il cliente ha espresso disponibilità temporale ('mattina', 'pomeriggio', 'sera')",
+            "Il cliente ha fatto qualsiasi domanda positiva sul processo",
+            "Il cliente ha mostrato qualsiasi segno di interesse a procedere",
+            "PASSA SUBITO A LINK_INVIATO al primo segno positivo - NON CHIEDERE ULTERIORI CONFERME"
         ]
     },
     
