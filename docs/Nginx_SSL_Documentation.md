@@ -505,6 +505,21 @@ ln -sf scripts/server.sh server
 ./server ssl-check
 ```
 
+#### Gestione Dipendenze
+```bash
+# Installa dipendenze Poetry
+./server dependencies-install
+
+# Aggiorna dipendenze Poetry
+./server dependencies-update
+
+# Verifica stato dipendenze
+./server dependencies-check
+
+# Aggiorna poetry.lock
+./server dependencies-lock
+```
+
 #### Monitoraggio
 ```bash
 # Controlli health automatici
@@ -541,6 +556,12 @@ ln -sf scripts/server.sh server
 ```bash
 ./server server-status
 ./server ssl-check
+```
+
+#### Aggiornamento Dipendenze
+```bash
+./server dependencies-update
+./server server-restart
 ```
 
 #### Manutenzione Settimanale

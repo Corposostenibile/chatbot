@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 🚀 Script di Gestione Completo Server Chatbot
-# Gestisce Nginx, SSL, Docker e Monitoraggio
+# Gestisce Nginx, SSL, Docker, Dipendenze e Monitoraggio
 set -e
 
 # Configurazione
@@ -51,7 +51,7 @@ print_info() {
 check_dependencies() {
     print_subheader "Verifica Dipendenze"
 
-    local deps=("docker" "docker-compose" "curl" "openssl")
+    local deps=("docker" "docker-compose" "curl" "openssl" "poetry")
     local missing=()
 
     for dep in "${deps[@]}"; do
@@ -63,6 +63,7 @@ check_dependencies() {
     if [ ${#missing[@]} -ne 0 ]; then
         print_error "Dipendenze mancanti: ${missing[*]}"
         print_info "Installa con: sudo apt update && sudo apt install -y ${missing[*]}"
+        print_info "Per Poetry: curl -sSL https://install.python-poetry.org | python3 -"
         exit 1
     fi
 
@@ -346,6 +347,132 @@ setup_ssl_cron() {
 }
 
 # ===============================
+# GESTIONE DIPENDENZE
+# ===============================
+
+dependencies_update() {
+    print_header "📦 AGGIORNAMENTO DIPENDENZE POETRY"
+
+    print_subheader "Verifica Poetry"
+    if ! command -v poetry &> /dev/null; then
+        print_error "Poetry non è installato"
+        print_info "Installa con: curl -sSL https://install.python-poetry.org | python3 -"
+        exit 1
+    fi
+
+    print_subheader "Verifica Ambiente Virtuale"
+    if ! poetry env info >/dev/null 2>&1; then
+        print_error "Ambiente virtuale Poetry non trovato"
+        print_info "Inizializza con: poetry install"
+        exit 1
+    fi
+
+    print_subheader "Aggiornamento Dipendenze"
+    poetry update
+
+    if [ $? -eq 0 ]; then
+        print_status "Dipendenze aggiornate con successo"
+
+        print_subheader "Verifica Ambiente"
+        if poetry check; then
+            print_status "Ambiente Poetry OK"
+        else
+            print_warning "Possibili problemi con l'ambiente Poetry"
+        fi
+
+        print_info "Riavvia l'applicazione per applicare le modifiche"
+        print_info "Usa: ./server server-restart"
+    else
+        print_error "Errore nell'aggiornamento delle dipendenze"
+        exit 1
+    fi
+}
+
+dependencies_install() {
+    print_header "📦 INSTALLAZIONE DIPENDENZE POETRY"
+
+    print_subheader "Verifica Poetry"
+    if ! command -v poetry &> /dev/null; then
+        print_error "Poetry non è installato"
+        print_info "Installa con: curl -sSL https://install.python-poetry.org | python3 -"
+        exit 1
+    fi
+
+    print_subheader "Installazione Dipendenze"
+    poetry install
+
+    if [ $? -eq 0 ]; then
+        print_status "Dipendenze installate con successo"
+
+        print_subheader "Verifica Ambiente"
+        if poetry check; then
+            print_status "Ambiente Poetry OK"
+        else
+            print_warning "Possibili problemi con l'ambiente Poetry"
+        fi
+    else
+        print_error "Errore nell'installazione delle dipendenze"
+        exit 1
+    fi
+}
+
+dependencies_check() {
+    print_header "🔍 VERIFICA DIPENDENZE POETRY"
+
+    print_subheader "Verifica Poetry"
+    if ! command -v poetry &> /dev/null; then
+        print_error "Poetry non è installato"
+        exit 1
+    fi
+
+    print_subheader "Stato Ambiente Virtuale"
+    if poetry env info >/dev/null 2>&1; then
+        print_status "Ambiente virtuale attivo"
+        poetry env info | head -5
+    else
+        print_error "Ambiente virtuale non trovato"
+        print_info "Installa dipendenze con: ./server dependencies-install"
+        exit 1
+    fi
+
+    echo
+
+    print_subheader "Verifica Dipendenze"
+    if poetry check; then
+        print_status "Tutte le dipendenze sono OK"
+    else
+        print_error "Problemi con le dipendenze Poetry"
+    fi
+
+    echo
+
+    print_subheader "Dipendenze Installate"
+    poetry show --only=main | head -10
+    echo "..."
+    print_info "Mostrate solo le prime 10 dipendenze. Usa 'poetry show' per vedere tutte."
+}
+
+dependencies_lock() {
+    print_header "🔒 AGGIORNAMENTO POETRY.LOCK"
+
+    print_subheader "Verifica Poetry"
+    if ! command -v poetry &> /dev/null; then
+        print_error "Poetry non è installato"
+        exit 1
+    fi
+
+    print_subheader "Aggiornamento Lock File"
+    poetry lock
+
+    if [ $? -eq 0 ]; then
+        print_status "File poetry.lock aggiornato con successo"
+    else
+        print_error "Errore nell'aggiornamento del lock file"
+        exit 1
+    fi
+}
+
+# ===============================
 # MONITORAGGIO
 # ===============================
 
@@ -595,6 +722,12 @@ show_help() {
     echo "  ssl-renew              Rinnova certificato SSL"
     echo "  ssl-check              Verifica configurazione SSL"
     echo ""
+    echo "📦 DIPENDENZE:"
+    echo "  dependencies-install   Installa dipendenze Poetry"
+    echo "  dependencies-update    Aggiorna dipendenze Poetry"
+    echo "  dependencies-check     Verifica stato dipendenze"
+    echo "  dependencies-lock      Aggiorna poetry.lock"
+    echo ""
     echo "📊 MONITORAGGIO:"
     echo "  monitor-health         Controlli health automatici"
     echo "  monitor-resources      Monitoraggio risorse"
@@ -612,6 +745,7 @@ show_help() {
     echo "ESEMPI:"
     echo "  $0 server-start        # Avvia il server"
     echo "  $0 ssl-setup          # Setup SSL"
+    echo "  $0 dependencies-update # Aggiorna dipendenze"
     echo "  $0 monitor-health     # Controlla health"
     echo "  $0 server-logs nginx  # Logs Nginx"
     echo ""
@@ -631,6 +765,12 @@ case "${1:-help}" in
     ssl-setup) ssl_setup ;;
     ssl-renew) ssl_renew ;;
     ssl-check) ssl_check ;;
+
+    # Dipendenze
+    dependencies-install) dependencies_install ;;
+    dependencies-update) dependencies_update ;;
+    dependencies-check) dependencies_check ;;
+    dependencies-lock) dependencies_lock ;;
 
     # Monitoraggio
     monitor-health) monitor_health ;;
