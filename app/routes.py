@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import func
 
 from app.config import Settings, get_settings
-from app.models.database_models import SessionModel
+from app.models.database_models import SessionModel, MessageModel
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
 from app.database import get_db
@@ -156,6 +156,182 @@ async def preview():
         raise HTTPException(
             status_code=500, 
             detail=f"Errore nel caricamento del template di test: {str(e)}"
+        )
+
+
+@router.get("/sessions", response_class=HTMLResponse)
+async def sessions_dashboard():
+    """Dashboard per visualizzare tutte le sessioni salvate nel database"""
+    try:
+        # Ottieni il percorso del template
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+
+        # Verifica che la directory templates esista
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=500, detail="Template directory not found")
+
+        # Leggi il template delle sessioni
+        template_path = os.path.join(templates_dir, "sessions.html")
+
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="Sessions template not found")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Inizializza Jinja2
+        env = Environment(loader=FileSystemLoader(templates_dir))
+        template = env.from_string(html_content)
+
+        # Ottieni tutte le sessioni con i relativi messaggi
+        async for db in get_db():
+            # Query per ottenere sessioni con conteggio messaggi
+            result = await db.execute(
+                """
+                SELECT
+                    s.id,
+                    s.session_id,
+                    s.current_lifecycle,
+                    s.user_info,
+                    s.created_at,
+                    s.updated_at,
+                    COUNT(m.id) as message_count
+                FROM sessions s
+                LEFT JOIN messages m ON s.id = m.session_id
+                GROUP BY s.id, s.session_id, s.current_lifecycle, s.user_info, s.created_at, s.updated_at
+                ORDER BY s.updated_at DESC
+                """
+            )
+            sessions_data = result.fetchall()
+
+        # Converti i risultati in dizionari
+        sessions = []
+        for row in sessions_data:
+            sessions.append({
+                'id': row[0],
+                'session_id': row[1],
+                'current_lifecycle': row[2],
+                'user_info': row[3],
+                'created_at': row[4],
+                'updated_at': row[5],
+                'message_count': row[6]
+            })
+
+        # Prepara i dati del template
+        settings = get_settings()
+
+        # Renderizza il template
+        rendered_html = template.render(
+            sessions=sessions,
+            app_version=settings.app_version,
+            total_sessions=len(sessions)
+        )
+
+        return rendered_html
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard sessioni: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel caricamento della dashboard sessioni: {str(e)}"
+        )
+
+
+@router.get("/session/{session_id}/messages", response_class=HTMLResponse)
+async def session_conversation(session_id: str):
+    """Visualizza la conversazione completa di una sessione specifica"""
+    try:
+        # Ottieni il percorso del template
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+
+        # Verifica che la directory templates esista
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=500, detail="Template directory not found")
+
+        # Leggi il template della conversazione
+        template_path = os.path.join(templates_dir, "conversation.html")
+
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="Conversation template not found")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Inizializza Jinja2
+        env = Environment(loader=FileSystemLoader(templates_dir))
+        template = env.from_string(html_content)
+
+        # Ottieni la sessione e i suoi messaggi
+        async for db in get_db():
+            # Ottieni informazioni sulla sessione
+            session_result = await db.execute(
+                """
+                SELECT id, session_id, current_lifecycle, user_info, created_at, updated_at
+                FROM sessions
+                WHERE session_id = :session_id
+                """,
+                {"session_id": session_id}
+            )
+            session_data = session_result.fetchone()
+
+            if not session_data:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            # Ottieni tutti i messaggi della sessione
+            messages_result = await db.execute(
+                """
+                SELECT role, message, timestamp
+                FROM messages
+                WHERE session_id = :session_id
+                ORDER BY timestamp ASC
+                """,
+                {"session_id": session_data[0]}  # Usa l'id interno della sessione
+            )
+            messages_data = messages_result.fetchall()
+
+        # Converti i messaggi in dizionari
+        messages = []
+        for msg in messages_data:
+            messages.append({
+                'role': msg[0],
+                'message': msg[1],
+                'timestamp': msg[2]
+            })
+
+        # Converti i dati della sessione
+        session_info = {
+            'id': session_data[0],
+            'session_id': session_data[1],
+            'current_lifecycle': session_data[2],
+            'user_info': session_data[3],
+            'created_at': session_data[4],
+            'updated_at': session_data[5],
+            'message_count': len(messages)
+        }
+
+        # Prepara i dati del template
+        settings = get_settings()
+
+        # Renderizza il template
+        rendered_html = template.render(
+            session=session_info,
+            messages=messages,
+            app_version=settings.app_version
+        )
+
+        return rendered_html
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della conversazione sessione {session_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel caricamento della conversazione: {str(e)}"
         )
 
 

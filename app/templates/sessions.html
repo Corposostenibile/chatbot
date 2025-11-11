@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Sessioni - Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            background: rgba(255,255,255,0.1);
+            padding: 15px 25px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .search-container {
+            margin-bottom: 30px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+
+        .filter-select {
+            padding: 12px 20px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            background: white;
+        }
+
+        .sessions-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .session-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .session-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            border-color: #4f46e5;
+        }
+
+        .session-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .session-id {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1f2937;
+            word-break: break-all;
+        }
+
+        .lifecycle-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .lifecycle-nuova_lead { background: #fef3c7; color: #92400e; }
+        .lifecycle-contrassegnato { background: #dbeafe; color: #1e40af; }
+        .lifecycle-in_target { background: #dcfce7; color: #166534; }
+        .lifecycle-link_da_inviare { background: #fce7f3; color: #be185d; }
+        .lifecycle-link_inviato { background: #d1fae5; color: #065f46; }
+
+        .session-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meta-label {
+            font-size: 0.8rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .meta-value {
+            font-size: 0.9rem;
+            color: #374151;
+            font-weight: 500;
+        }
+
+        .session-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .message-count {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .view-button {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .view-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .footer {
+            background: #f8fafc;
+            padding: 20px 30px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .session-meta {
+                grid-template-columns: 1fr;
+            }
+
+            .search-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Dashboard Sessioni</h1>
+            <p>Visualizza e gestisci tutte le conversazioni salvate</p>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-number">{{ total_sessions }}</span>
+                    <span class="stat-label">Sessioni Totali</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Cerca per ID sessione..." id="searchInput">
+                <select class="filter-select" id="lifecycleFilter">
+                    <option value="">Tutti gli stati</option>
+                    <option value="NUOVA_LEAD">Nuova Lead</option>
+                    <option value="CONTRASSEGNATO">Contrassegnato</option>
+                    <option value="IN_TARGET">In Target</option>
+                    <option value="LINK_DA_INVIARE">Link da Inviare</option>
+                    <option value="LINK_INVIATO">Link Inviato</option>
+                </select>
+            </div>
+
+            <div class="sessions-grid" id="sessionsGrid">
+                {% for session in sessions %}
+                <div class="session-card" data-session-id="{{ session.session_id }}" data-lifecycle="{{ session.current_lifecycle }}">
+                    <div class="session-header">
+                        <div class="session-id">{{ session.session_id }}</div>
+                        <span class="lifecycle-badge lifecycle-{{ session.current_lifecycle.lower() }}">
+                            {{ session.current_lifecycle.replace('_', ' ') }}
+                        </span>
+                    </div>
+
+                    <div class="session-meta">
+                        <div class="meta-item">
+                            <div class="meta-label">Creato</div>
+                            <div class="meta-value">{{ session.created_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        </div>
+                        <div class="meta-item">
+                            <div class="meta-label">Ultimo Aggiornamento</div>
+                            <div class="meta-value">{{ session.updated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+                        </div>
+                        {% if session.user_info %}
+                        <div class="meta-item">
+                            <div class="meta-label">Info Utente</div>
+                            <div class="meta-value">{{ session.user_info[:50] }}{% if session.user_info|length > 50 %}...{% endif %}</div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="session-stats">
+                        <div class="message-count">
+                            💬 {{ session.message_count }} messaggi
+                        </div>
+                        <button class="view-button" onclick="viewConversation('{{ session.session_id }}')">
+                            Visualizza Conversazione
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if sessions|length == 0 %}
+            <div class="empty-state">
+                <h3>📭 Nessuna sessione trovata</h3>
+                <p>Le conversazioni appariranno qui quando gli utenti inizieranno a chattare.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="footer">
+            <p>Chatbot v{{ app_version }} - Dashboard Sessioni</p>
+        </div>
+    </div>
+
+    <script>
+        // Funzione per visualizzare la conversazione
+        function viewConversation(sessionId) {
+            window.location.href = `/session/${sessionId}/messages`;
+        }
+
+        // Funzionalità di ricerca
+        document.getElementById('searchInput').addEventListener('input', filterSessions);
+        document.getElementById('lifecycleFilter').addEventListener('change', filterSessions);
+
+        function filterSessions() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const lifecycleFilter = document.getElementById('lifecycleFilter').value;
+            const cards = document.querySelectorAll('.session-card');
+
+            cards.forEach(card => {
+                const sessionId = card.dataset.sessionId.toLowerCase();
+                const lifecycle = card.dataset.lifecycle;
+                const matchesSearch = sessionId.includes(searchTerm);
+                const matchesLifecycle = !lifecycleFilter || lifecycle === lifecycleFilter;
+
+                if (matchesSearch && matchesLifecycle) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // Auto-refresh ogni 30 secondi
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                location.reload();
+            }
+        }, 30000);
+    </script>
+</body>
+</html>

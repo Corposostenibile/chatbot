@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversazione - {{ session.session_id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .session-info h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .session-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(255,255,255,0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .back-button {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255,255,255,0.2);
+            transform: translateY(-1px);
+        }
+
+        .session-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .meta-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .meta-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .meta-value {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .lifecycle-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .lifecycle-nuova_lead { background: #fef3c7; color: #92400e; }
+        .lifecycle-contrassegnato { background: #dbeafe; color: #1e40af; }
+        .lifecycle-in_target { background: #dcfce7; color: #166534; }
+        .lifecycle-link_da_inviare { background: #fce7f3; color: #be185d; }
+        .lifecycle-link_inviato { background: #d1fae5; color: #065f46; }
+
+        .content {
+            padding: 30px;
+        }
+
+        .conversation-container {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .message-user .message-avatar {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .message-assistant .message-avatar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            background: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .message-role {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .message-time {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+
+        .message-text {
+            line-height: 1.6;
+            color: #374151;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .stat {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #4f46e5;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #374151;
+        }
+
+        .footer {
+            background: #f8fafc;
+            padding: 20px 30px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .session-meta {
+                grid-template-columns: 1fr;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .message {
+                gap: 10px;
+            }
+
+            .message-content {
+                padding: 12px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="session-info">
+                    <h1>💬 Conversazione</h1>
+                    <div class="session-id">{{ session.session_id }}</div>
+                </div>
+                <a href="/sessions" class="back-button">← Torna alle Sessioni</a>
+            </div>
+
+            <div class="session-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Stato Lifecycle</div>
+                    <div class="meta-value">
+                        <span class="lifecycle-badge lifecycle-{{ session.current_lifecycle.lower() }}">
+                            {{ session.current_lifecycle.replace('_', ' ') }}
+                        </span>
+                    </div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Creato</div>
+                    <div class="meta-value">{{ session.created_at.strftime('%d/%m/%Y %H:%M:%S') }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Ultimo Aggiornamento</div>
+                    <div class="meta-value">{{ session.updated_at.strftime('%d/%m/%Y %H:%M:%S') }}</div>
+                </div>
+                {% if session.user_info %}
+                <div class="meta-item">
+                    <div class="meta-label">Info Utente</div>
+                    <div class="meta-value">{{ session.user_info }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-number">{{ session.message_count }}</span>
+                    <span class="stat-label">Messaggi Totali</span>
+                </div>
+            </div>
+
+            <div class="conversation-container">
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="message message-{{ message.role }}">
+                        <div class="message-avatar">
+                            {% if message.role == 'user' %}
+                                👤
+                            {% else %}
+                                🤖
+                            {% endif %}
+                        </div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-role">{{ message.role.title() }}</span>
+                                <span class="message-time">{{ message.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}</span>
+                            </div>
+                            <div class="message-text">{{ message.message }}</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <h3>📭 Nessun messaggio trovato</h3>
+                        <p>Questa sessione non ha ancora messaggi.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Chatbot v{{ app_version }} - Conversazione Sessione</p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-scroll all'ultimo messaggio
+        window.addEventListener('load', () => {
+            const lastMessage = document.querySelector('.message:last-child');
+            if (lastMessage) {
+                lastMessage.scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+
+        // Auto-refresh ogni 60 secondi se la pagina è visibile
+        setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                location.reload();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
