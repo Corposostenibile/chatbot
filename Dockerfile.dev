@@ -24,6 +24,11 @@ COPY pyproject.toml poetry.lock* README.md ./
 # Copia la cartella app (necessaria per Poetry)
 COPY app/ ./app/
 
+# Copia gli script di gestione server
+COPY server ./server
+COPY scripts/ ./scripts/
+RUN chmod +x ./server ./scripts/*.sh
+
 # Installa tutte le dipendenze (incluse quelle di sviluppo)
 RUN poetry install
 

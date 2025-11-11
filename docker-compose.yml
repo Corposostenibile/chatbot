@@ -16,6 +16,8 @@ services:
       # Mount del codice per hot reload durante lo sviluppo
       - ./app:/app/app:ro
       - ./.env:/app/.env:ro
+      # Mount della directory progetto per accesso agli script
+      - .:/home/manu/chatbot:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]

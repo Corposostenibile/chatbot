@@ -2,6 +2,7 @@
 Routes per il chatbot API
 Contiene tutti gli endpoint FastAPI
 """
+import os
 import time
 from datetime import datetime
 from typing import Dict
@@ -17,23 +18,57 @@ from app.models.database_models import SessionModel
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
 from app.database import get_db
-import os
+import subprocess
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # Crea il router
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("/", response_class=HTMLResponse)
 async def root():
-    """Endpoint root con informazioni base"""
-    settings = get_settings()
-    return {
-        "message": "Chatbot API",
-        "version": settings.app_version,
-        "status": "running",
-        "docs": "Visita /docs per la documentazione API",
-        "flow_visualization": "Visita /flow per la visualizzazione del flusso end-to-end"
-    }
+    """Dashboard di monitoraggio principale"""
+    try:
+        # Ottieni il percorso del template
+        templates_dir = os.path.join(os.path.dirname(__file__), "templates")
+
+        # Verifica che la directory templates esista
+        if not os.path.exists(templates_dir):
+            raise HTTPException(status_code=500, detail="Template directory not found")
+
+        # Leggi il template di monitoraggio
+        template_path = os.path.join(templates_dir, "monitoring_dashboard.html")
+
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=404, detail="Monitoring dashboard template not found")
+
+        with open(template_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Inizializza Jinja2
+        env = Environment(loader=FileSystemLoader(templates_dir))
+        template = env.from_string(html_content)
+
+        # Prepara i dati del template
+        settings = get_settings()
+
+        # Renderizza il template
+        rendered_html = template.render(
+            app_version=settings.app_version
+        )
+
+        return rendered_html
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard di monitoraggio: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel caricamento della dashboard: {str(e)}"
+        )
 
 
 @router.get("/flow", response_class=HTMLResponse)
@@ -267,3 +302,74 @@ async def unified_agent_health_check():
             "status": "error",
             "message": f"Errore nel controllo: {str(e)}"
         }
+
+
+@router.get("/api/execute/{command}")
+async def execute_command(command: str):
+    """Endpoint API per eseguire comandi del server script"""
+    try:
+        from app.main import logger
+
+        # Mappa dei comandi disponibili
+        available_commands = {
+            "server-status": ["./server", "server-status"],
+            "monitor-health": ["./server", "monitor-health"],
+            "ssl-check": ["./server", "ssl-check"],
+            "dependencies-check": ["./server", "dependencies-check"],
+            "dependencies-lock": ["./server", "dependencies-lock"]
+        }
+
+        if command not in available_commands:
+            raise HTTPException(status_code=400, detail=f"Comando non disponibile: {command}")
+
+        logger.info(f"Eseguendo comando API: {command}")
+
+        # Esegui il comando in un thread separato per non bloccare l'event loop
+        def run_command():
+            try:
+                # Usa la directory del container dove è copiato il file server
+                container_dir = "/app"
+                result = subprocess.run(
+                    available_commands[command],
+                    capture_output=True,
+                    text=True,
+                    cwd=container_dir,
+                    timeout=30  # Timeout più lungo per comandi complessi
+                )
+                return {
+                    "success": result.returncode == 0,
+                    "returncode": result.returncode,
+                    "stdout": result.stdout,
+                    "stderr": result.stderr
+                }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": str(e)
+                }
+
+        # Esegui in thread pool
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            result = await loop.run_in_executor(executor, run_command)
+
+        if not result["success"]:
+            logger.error(f"Comando {command} fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Comando fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}"
+            )
+
+        logger.info(f"Comando {command} eseguito con successo")
+        return {
+            "command": command,
+            "success": True,
+            "output": result["stdout"],
+            "timestamp": datetime.now().isoformat()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nell'esecuzione del comando API {command}: {str(e)}")

@@ -150,7 +150,12 @@ server_status() {
     print_header "📊 STATUS SERVER"
 
     print_subheader "Status Container Docker"
-    docker-compose ps
+    if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+        docker-compose ps
+    else
+        print_info "ℹ Docker non disponibile nel container"
+        print_info "ℹ Controlla lo status dall'host con: docker-compose ps"
+    fi
 
     echo
 
@@ -178,8 +183,13 @@ server_status() {
     echo
 
     print_subheader "Utilizzo Risorse"
-    echo "Container attivi:"
-    docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+    if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+        echo "Container attivi:"
+        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+    else
+        print_info "ℹ Monitoraggio risorse non disponibile nel container"
+        print_info "ℹ Usa 'docker stats' dall'host per monitorare le risorse"
+    fi
 }
 
 server_logs() {
@@ -484,11 +494,15 @@ monitor_health() {
     print_subheader "Controlli Automatici"
 
     # Controllo container
-    if ! docker-compose ps | grep -q "Up"; then
-        print_error "Alcuni container non sono attivi"
-        ((issues++))
+    if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+        if ! docker-compose ps | grep -q "Up"; then
+            print_error "Alcuni container non sono attivi"
+            ((issues++))
+        else
+            print_status "Tutti i container sono attivi"
+        fi
     else
-        print_status "Tutti i container sono attivi"
+        print_info "ℹ Controllo container non disponibile (Docker non accessibile dal container)"
     fi
 
     # Controllo applicazione
@@ -500,11 +514,15 @@ monitor_health() {
     fi
 
     # Controllo database
-    if ! docker-compose exec -T postgres pg_isready -U chatbot >/dev/null 2>&1; then
-        print_error "Database non accessibile"
-        ((issues++))
+    if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+        if ! docker-compose exec -T postgres pg_isready -U chatbot >/dev/null 2>&1; then
+            print_error "Database non accessibile"
+            ((issues++))
+        else
+            print_status "Database accessibile"
+        fi
     else
-        print_status "Database accessibile"
+        print_info "ℹ Controllo database non disponibile (Docker non accessibile dal container)"
     fi
 
     # Controllo SSL
