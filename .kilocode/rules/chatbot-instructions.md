@@ -12,13 +12,51 @@ Le sessioni e le conversazioni sono persistite in un database PostgreSQL per gar
 - `app/models/database_models.py`: Modelli SQLAlchemy per sessioni e messaggi
 - `app/database.py`: Configurazione connessione database
 - `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
+- `scripts/server.sh`: Script di gestione server completo (vedi sezione dedicata)
 
 ## Flusso di Sviluppo
-- **Setup**: `./scripts/server.sh setup` (installa dipendenze Poetry, crea `.env`)
-- **Esegui localmente**: `./scripts/server.sh dev` (Poetry + uvicorn con reload)
-- **Test**: `./scripts/server.sh test` (pytest con coverage)
-- **Formatta**: `./scripts/server.sh format` (black + isort + flake8)
+- **Installazione dipendenze**: `./scripts/server.sh dependencies-install` (installa dipendenze Poetry)
+- **Aggiornamento dipendenze**: `./scripts/server.sh dependencies-update` (aggiorna dipendenze Poetry)
+- **Verifica dipendenze**: `./scripts/server.sh dependencies-check` (controlla stato dipendenze)
+- **Avvio server completo**: `./scripts/server.sh server-start` (avvia Nginx + SSL + Docker)
+- **Status server**: `./scripts/server.sh server-status` (mostra status completo)
+- **Monitoraggio health**: `./scripts/server.sh monitor-health` (controlli automatici)
+- **Setup SSL**: `./scripts/server.sh ssl-setup` (configura SSL Let's Encrypt)
+- **Troubleshooting**: `./scripts/server.sh troubleshoot` (diagnosi automatica problemi)
 - **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)
+
+## Script server.sh - Gestione Server Completa
+
+Lo script `scripts/server.sh` è lo strumento principale per gestire l'intero stack di produzione:
+
+### 🖥️ Gestione Server
+- `server-start`: Avvia Nginx, chatbot e database
+- `server-stop`: Arresta tutti i servizi
+- `server-restart`: Riavvia tutti i servizi
+- `server-status`: Mostra status completo (container, app, SSL, risorse)
+- `server-logs [nginx|chatbot|postgres|all]`: Visualizza logs dei servizi
+
+### 🔒 Gestione SSL
+- `ssl-setup`: Setup completo SSL Let's Encrypt con rinnovo automatico
+- `ssl-renew`: Rinnova manualmente il certificato SSL
+- `ssl-check`: Verifica validità e scadenza del certificato
+
+### 📦 Gestione Dipendenze
+- `dependencies-install`: Installa dipendenze Poetry
+- `dependencies-update`: Aggiorna dipendenze Poetry
+- `dependencies-check`: Verifica stato dipendenze e ambiente virtuale
+- `dependencies-lock`: Aggiorna poetry.lock
+
+### 📊 Monitoraggio
+- `monitor-health`: Controlli automatici di health (container, app, DB, SSL, disco)
+- `monitor-resources`: Monitoraggio utilizzo risorse container
+
+### 🔧 Troubleshooting
+- `troubleshoot`: Diagnosi automatica problemi comuni (DNS, porte, container, comunicazione)
+
+### ⚙️ Manutenzione
+- `maintenance-update`: Aggiornamento completo sistema e riavvio
+- `maintenance-cleanup`: Pulizia immagini, container e log inutilizzati
 
 ## Pattern di Codifica
 ### Formato Risposta AI
@@ -73,6 +111,6 @@ unified_prompt = f"""...FORMATO RISPOSTA RICHIESTO:
 ## File Chiave da Riferire
 - `app/services/unified_agent.py`: Logica conversazione AI
 - `app/data/lifecycle_config.py`: Script fasi e trigger
-- `scripts/server.sh`: Comandi sviluppo
+- `scripts/server.sh`: Script gestione server completo (Nginx, SSL, Docker, monitoraggio)
 - `cloudbuild.yaml`: Pipeline CI/CD</content>
 <parameter name="filePath">/home/ubuntu/chatbot/.github/copilot-instructions.md
