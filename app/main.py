@@ -3,6 +3,7 @@ Applicazione FastAPI principale per il Chatbot
 """
 
 import os
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 
@@ -18,6 +19,25 @@ from .database import engine, Base
 from .routes import router
 
 
+async def wait_for_db(max_retries: int = 10, delay: int = 2):
+    """Attende che il database sia disponibile con retry"""
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Tentativo di connessione al database ({attempt + 1}/{max_retries})...")
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("✅ Connessione al database riuscita")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(f"⏳ Database non pronto, attesa {delay}s... ({attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"❌ Impossibile connettersi al database dopo {max_retries} tentativi: {e}")
+                raise
+    return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gestisce il ciclo di vita dell'applicazione"""
@@ -26,9 +46,8 @@ async def lifespan(app: FastAPI):
     logger.info(f"Versione: {settings.app_version}")
     logger.info(f"Debug mode: {settings.debug}")
     
-    # Crea le tabelle del database
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Crea le tabelle del database con retry
+    await wait_for_db()
     logger.info("✅ Tabelle del database create")
     
     # Verifica la disponibilità dei servizi

@@ -238,6 +238,52 @@ test_lifecycle() {
     fi
 }
 
+# Funzione per avviare con Docker Compose (con reload)
+run_docker_dev() {
+    print_header "Avvio Applicazione con Docker Compose"
+    
+    # Ottieni la porta dalle impostazioni
+    PORT=$(get_port)
+    print_status "Usando porta: $PORT"
+    
+    # Uccidi il server di sviluppo Poetry se attivo
+    kill_existing_server $PORT
+    
+    # Verifica che Docker sia installato
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker non è installato. Installalo per procedere."
+        exit 1
+    fi
+    
+    # Verifica che Docker Compose sia disponibile
+    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+        print_error "Docker Compose non è disponibile. Installalo per procedere."
+        exit 1
+    fi
+    
+    print_status "Avviando applicazione e database con Docker Compose..."
+    print_warning "Il file docker-compose.override.yml sarà usato per lo sviluppo"
+    
+    # Pulisci eventuali container precedenti
+    print_status "Pulizia container precedenti..."
+    docker-compose -f docker-compose.yml -f docker-compose.override.yml down 2>/dev/null || true
+    
+    # Avvia i servizi con il file base e l'override in background
+    print_status "Avviando container in background..."
+    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
+    
+    # Attendi che l'app sia pronta
+    sleep 3
+    
+    print_status "✅ Applicazione avviata in background!"
+    print_status "📍 Accedi all'app su http://localhost:8080"
+    print_status ""
+    print_status "Comandi utili:"
+    print_status "  Visualizza i log:  docker-compose logs -f chatbot"
+    print_status "  Ferma i servizi:   docker-compose down"
+    print_status "  Visualizza status: docker-compose ps"
+}
+
 # Funzione per fermare il database
 stop_db() {
     print_header "Fermando Database"
@@ -281,20 +327,22 @@ show_help() {
     echo "Uso: $0 [COMANDO]"
     echo ""
     echo "Comandi disponibili:"
-    echo "  setup     - Configura l'ambiente di sviluppo"
-    echo "  dev       - Avvia l'applicazione in modalità sviluppo (con DB)"
-    echo "  test      - Esegue i test"
-    echo "  test-db   - Test connessione database"
-    echo "  test-lifecycle - Test flusso completo lifecycle"
-    echo "  format    - Formatta il codice"
-    echo "  db-stop   - Ferma il database PostgreSQL"
-    echo "  help      - Mostra questo aiuto"
+    echo "  setup           - Configura l'ambiente di sviluppo"
+    echo "  dev             - Avvia l'applicazione in modalità sviluppo locale (con DB Docker)"
+    echo "  docker-dev      - Avvia l'applicazione completamente in Docker (con reload)"
+    echo "  test            - Esegue i test"
+    echo "  test-db         - Test connessione database"
+    echo "  test-lifecycle  - Test flusso completo lifecycle"
+    echo "  format          - Formatta il codice"
+    echo "  db-stop         - Ferma il database PostgreSQL"
+    echo "  help            - Mostra questo aiuto"
     echo ""
     echo "Esempi:"
-    echo "  $0 setup    # Prima configurazione"
-    echo "  $0 dev      # Sviluppo locale con DB"
-    echo "  $0 test     # Esegui test"
-    echo "  $0 test-db  # Test connessione DB"
+    echo "  $0 setup          # Prima configurazione"
+    echo "  $0 dev            # Sviluppo locale con DB Docker"
+    echo "  $0 docker-dev     # Sviluppo completamente in Docker"
+    echo "  $0 test           # Esegui test"
+    echo "  $0 test-db        # Test connessione DB"
     echo "  $0 test-lifecycle # Test flusso lifecycle"
 }
 
@@ -305,6 +353,9 @@ case "${1:-help}" in
         ;;
     dev)
         run_dev
+        ;;
+    docker-dev)
+        run_docker_dev
         ;;
     test)
         run_tests
