@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func
+from sqlalchemy import func, select, text
 
 from app.config import Settings, get_settings
 from app.models.database_models import SessionModel, MessageModel
@@ -109,44 +109,46 @@ async def preview(request: Request):
 async def sessions_dashboard(request: Request):
     """Dashboard per visualizzare tutte le sessioni salvate nel database"""
     try:
-        # Ottieni tutte le sessioni con i relativi messaggi
         async for db in get_db():
-            # Query per ottenere sessioni con conteggio messaggi
-            result = await db.execute(
-                """
-                SELECT
-                    s.id,
-                    s.session_id,
-                    s.current_lifecycle,
-                    s.user_info,
-                    s.created_at,
-                    s.updated_at,
-                    COUNT(m.id) as message_count
-                FROM sessions s
-                LEFT JOIN messages m ON s.id = m.session_id
-                GROUP BY s.id, s.session_id, s.current_lifecycle, s.user_info, s.created_at, s.updated_at
-                ORDER BY s.updated_at DESC
-                """
-            )
+            # Query ORM per ottenere sessioni con conteggio messaggi
+            stmt = select(
+                SessionModel.id,
+                SessionModel.session_id,
+                SessionModel.current_lifecycle,
+                SessionModel.user_info,
+                SessionModel.created_at,
+                SessionModel.updated_at,
+                func.count(MessageModel.id).label('message_count')
+            ).outerjoin(
+                MessageModel, SessionModel.id == MessageModel.session_id
+            ).group_by(
+                SessionModel.id,
+                SessionModel.session_id,
+                SessionModel.current_lifecycle,
+                SessionModel.user_info,
+                SessionModel.created_at,
+                SessionModel.updated_at
+            ).order_by(SessionModel.updated_at.desc())
+
+            result = await db.execute(stmt)
             sessions_data = result.fetchall()
 
         # Converti i risultati in dizionari
         sessions = []
         for row in sessions_data:
             sessions.append({
-                'id': row[0],
-                'session_id': row[1],
-                'current_lifecycle': row[2],
-                'user_info': row[3],
-                'created_at': row[4],
-                'updated_at': row[5],
-                'message_count': row[6]
+                'id': row.id,
+                'session_id': row.session_id,
+                'current_lifecycle': row.current_lifecycle,
+                'user_info': row.user_info,
+                'created_at': row.created_at,
+                'updated_at': row.updated_at,
+                'message_count': row.message_count
             })
 
         # Prepara i dati del template
         settings = get_settings()
 
-        # Renderizza il template
         return templates.TemplateResponse(
             "sessions.html",
             {
@@ -170,58 +172,46 @@ async def sessions_dashboard(request: Request):
 async def session_conversation(session_id: str, request: Request):
     """Visualizza la conversazione completa di una sessione specifica"""
     try:
-        # Ottieni la sessione e i suoi messaggi
         async for db in get_db():
-            # Ottieni informazioni sulla sessione
-            session_result = await db.execute(
-                """
-                SELECT id, session_id, current_lifecycle, user_info, created_at, updated_at
-                FROM sessions
-                WHERE session_id = :session_id
-                """,
-                {"session_id": session_id}
-            )
-            session_data = session_result.fetchone()
+            # Query ORM per ottenere la sessione
+            session_stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+            session_result = await db.execute(session_stmt)
+            session_data = session_result.scalar_one_or_none()
 
             if not session_data:
                 raise HTTPException(status_code=404, detail="Sessione non trovata")
 
-            # Ottieni tutti i messaggi della sessione
-            messages_result = await db.execute(
-                """
-                SELECT role, message, timestamp
-                FROM messages
-                WHERE session_id = :session_id
-                ORDER BY timestamp ASC
-                """,
-                {"session_id": session_data[0]}  # Usa l'id interno della sessione
-            )
-            messages_data = messages_result.fetchall()
+            # Query ORM per ottenere tutti i messaggi della sessione
+            messages_stmt = select(MessageModel).where(
+                MessageModel.session_id == session_data.id
+            ).order_by(MessageModel.timestamp.asc())
+
+            messages_result = await db.execute(messages_stmt)
+            messages_data = messages_result.scalars().all()
 
         # Converti i messaggi in dizionari
         messages = []
         for msg in messages_data:
             messages.append({
-                'role': msg[0],
-                'message': msg[1],
-                'timestamp': msg[2]
+                'role': msg.role,
+                'message': msg.message,
+                'timestamp': msg.timestamp
             })
 
         # Converti i dati della sessione
         session_info = {
-            'id': session_data[0],
-            'session_id': session_data[1],
-            'current_lifecycle': session_data[2],
-            'user_info': session_data[3],
-            'created_at': session_data[4],
-            'updated_at': session_data[5],
+            'id': session_data.id,
+            'session_id': session_data.session_id,
+            'current_lifecycle': session_data.current_lifecycle,
+            'user_info': session_data.user_info,
+            'created_at': session_data.created_at,
+            'updated_at': session_data.updated_at,
             'message_count': len(messages)
         }
 
         # Prepara i dati del template
         settings = get_settings()
 
-        # Renderizza il template
         return templates.TemplateResponse(
             "conversation.html",
             {
