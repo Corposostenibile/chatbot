@@ -14,6 +14,7 @@ from loguru import logger
 
 from .config import Settings, settings
 from app.models.lifecycle import LifecycleResponse
+from .services.system_prompt_service import SystemPromptService
 from .services.unified_agent import unified_agent
 from .database import engine, Base
 from .routes import router
@@ -49,6 +50,10 @@ async def lifespan(app: FastAPI):
     # Crea le tabelle del database con retry
     await wait_for_db()
     logger.info("✅ Tabelle del database create")
+    
+    # Inizializza il prompt di sistema di default
+    await SystemPromptService.initialize_default_prompt()
+    logger.info("✅ Prompt di sistema inizializzato")
     
     # Verifica la disponibilità dei servizi
     if await unified_agent.is_available():

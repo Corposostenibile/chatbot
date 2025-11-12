@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Prompts - {{ app_version }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-4">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">System Prompts Manager</h1>
+                    <span class="ml-2 text-sm text-gray-500">v{{ app_version }}</span>
+                </div>
+                <nav class="flex space-x-4">
+                    <a href="/" class="text-gray-600 hover:text-gray-900">Dashboard</a>
+                    <a href="/sessions" class="text-gray-600 hover:text-gray-900">Sessioni</a>
+                    <a href="/flow" class="text-gray-600 hover:text-gray-900">Flusso</a>
+                    <a href="/system-prompts" class="text-blue-600 font-medium">Prompts</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Actions Bar -->
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">Gestione System Prompts</h2>
+                <p class="text-gray-600 mt-1">Crea, modifica e attiva i prompt di sistema per l'AI</p>
+            </div>
+            <button onclick="openCreateModal()" 
+                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                Nuovo Prompt
+            </button>
+        </div>
+
+        <!-- Prompts List -->
+        <div id="prompts-list" class="space-y-4">
+            {% for prompt in prompts %}
+            <div class="bg-white rounded-lg shadow-sm border p-6 fade-in">
+                <div class="flex justify-between items-start mb-4">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <h3 class="text-lg font-semibold text-gray-900">{{ prompt.name }}</h3>
+                            {% if prompt.is_active %}
+                            <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                                ATTIVO
+                            </span>
+                            {% endif %}
+                            <span class="text-sm text-gray-500">v{{ prompt.version }}</span>
+                        </div>
+                        {% if prompt.description %}
+                        <p class="text-gray-600 mb-3">{{ prompt.description }}</p>
+                        {% endif %}
+                        <div class="bg-gray-50 rounded p-3 text-sm text-gray-700 font-mono">
+                            {{ prompt.content | truncate(300) }}
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 ml-4">
+                        <button onclick="editPrompt({{ prompt.id }}, '{{ prompt.name }}', '{{ prompt.version }}', '{{ prompt.description or '' }}')"
+                                class="text-blue-600 hover:text-blue-800 p-2">
+                            ✏️
+                        </button>
+                        {% if not prompt.is_active %}
+                        <button onclick="activatePrompt({{ prompt.id }})"
+                                class="text-green-600 hover:text-green-800 p-2">
+                            ✅
+                        </button>
+                        {% endif %}
+                        <button onclick="deletePrompt({{ prompt.id }}, '{{ prompt.name }}')"
+                                class="text-red-600 hover:text-red-800 p-2">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+                <div class="text-xs text-gray-500">
+                    Creato: {{ prompt.created_at.strftime('%d/%m/%Y %H:%M') }} | 
+                    Modificato: {{ prompt.updated_at.strftime('%d/%m/%Y %H:%M') }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if not prompts %}
+        <div class="text-center py-12">
+            <p class="text-gray-500">Nessun prompt trovato. Crea il primo prompt per iniziare.</p>
+        </div>
+        {% endif %}
+    </main>
+
+    <!-- Create/Edit Modal -->
+    <div id="prompt-modal" class="modal">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modal-title" class="text-lg font-semibold">Nuovo Prompt</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                
+                <form id="prompt-form" onsubmit="savePrompt(event)">
+                    <input type="hidden" id="prompt-id" name="id">
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                        <input type="text" id="prompt-name" name="name" required
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Versione</label>
+                        <input type="text" id="prompt-version" name="version" value="1.0"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
+                        <input type="text" id="prompt-description" name="description"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Contenuto del Prompt *</label>
+                        <textarea id="prompt-content" name="content" rows="15" required
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal()" 
+                                class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                            Annulla
+                        </button>
+                        <button type="submit" 
+                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            Salva
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let editingPromptId = null;
+
+        function openCreateModal() {
+            editingPromptId = null;
+            document.getElementById('modal-title').textContent = 'Nuovo Prompt';
+            document.getElementById('prompt-form').reset();
+            document.getElementById('prompt-id').value = '';
+            document.getElementById('prompt-modal').classList.add('show');
+        }
+
+        function editPrompt(id, name, version, description) {
+            editingPromptId = id;
+            document.getElementById('modal-title').textContent = 'Modifica Prompt';
+            document.getElementById('prompt-id').value = id;
+            document.getElementById('prompt-name').value = name;
+            document.getElementById('prompt-version').value = version;
+            document.getElementById('prompt-description').value = description;
+            
+            // Carica il contenuto completo del prompt
+            fetch(`/api/system-prompts/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('prompt-content').value = data.content;
+                    document.getElementById('prompt-modal').classList.add('show');
+                })
+                .catch(error => {
+                    alert('Errore nel caricamento del prompt: ' + error);
+                });
+        }
+
+        function closeModal() {
+            document.getElementById('prompt-modal').classList.remove('show');
+            editingPromptId = null;
+        }
+
+        function savePrompt(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                content: formData.get('content'),
+                version: formData.get('version'),
+                description: formData.get('description')
+            };
+            
+            const url = editingPromptId ? `/api/system-prompts/${editingPromptId}` : '/api/system-prompts';
+            const method = editingPromptId ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.message || result.id) {
+                    closeModal();
+                    location.reload(); // Ricarica la pagina per aggiornare la lista
+                } else {
+                    alert('Errore nel salvataggio: ' + JSON.stringify(result));
+                }
+            })
+            .catch(error => {
+                alert('Errore: ' + error);
+            });
+        }
+
+        function activatePrompt(id) {
+            if (confirm('Sei sicuro di voler attivare questo prompt? Gli altri prompt verranno disattivati.')) {
+                fetch(`/api/system-prompts/${id}/activate`, {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.message) {
+                        location.reload();
+                    } else {
+                        alert('Errore nell\'attivazione: ' + JSON.stringify(result));
+                    }
+                })
+                .catch(error => {
+                    alert('Errore: ' + error);
+                });
+            }
+        }
+
+        function deletePrompt(id, name) {
+            if (confirm(`Sei sicuro di voler eliminare il prompt "${name}"?`)) {
+                fetch(`/api/system-prompts/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.message) {
+                        location.reload();
+                    } else {
+                        alert('Errore nell\'eliminazione: ' + JSON.stringify(result));
+                    }
+                })
+                .catch(error => {
+                    alert('Errore: ' + error);
+                });
+            }
+        }
+
+        // Chiudi modal cliccando fuori
+        document.getElementById('prompt-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

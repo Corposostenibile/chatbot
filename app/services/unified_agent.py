@@ -17,7 +17,7 @@ from app.models.lifecycle import (
     ChatSession, 
     LifecycleResponse
 )
-from app.data.lifecycle_config import LIFECYCLE_SCRIPTS, SYSTEM_PROMPT
+from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
 from app.config import settings
 from app.database import get_db
 from app.models.database_models import SessionModel, MessageModel
@@ -56,12 +56,9 @@ class UnifiedAgent:
                 model="gemini-flash-latest",
             )
             
-            # Inizializza l'agent
-            self.agent = Agent(
-                client=self.client,
-                name="Corposostenibile Unified Agent",
-                system_prompt=SYSTEM_PROMPT,
-            )
+            # Carica il prompt di sistema attivo dal database
+            # Nota: il prompt verrà caricato dinamicamente per ogni richiesta
+            self.agent = None  # Verrà inizializzato al primo uso
             
             logger.info("UnifiedAgent inizializzato con successo")
             
@@ -69,8 +66,28 @@ class UnifiedAgent:
             logger.error(f"Errore nell'inizializzazione di UnifiedAgent: {e}")
             raise
 
+    async def _get_agent(self) -> Agent:
+        """Ottiene l'agente con il prompt di sistema attivo"""
+        if self.agent is None:
+            # Carica il prompt attivo dal database
+            system_prompt = await SystemPromptService.get_active_prompt()
+            if not system_prompt:
+                # Fallback al prompt di default se non trovato
+                from app.data.lifecycle_config import SYSTEM_PROMPT
+                system_prompt = SYSTEM_PROMPT
+                logger.warning("Nessun prompt attivo trovato, uso fallback")
+            
+            # Inizializza l'agente con il prompt caricato
+            self.agent = Agent(
+                client=self.client,
+                name="Corposostenibile Unified Agent",
+                system_prompt=system_prompt,
+            )
+            logger.info("Agente inizializzato con prompt dal database")
+        
+        return self.agent
+
     async def get_or_create_session(self, session_id: str, db: AsyncSession) -> SessionModel:
-        """Ottiene o crea una nuova sessione"""
         # Cerca la sessione esistente
         result = await db.execute(
             select(SessionModel).where(SessionModel.session_id == session_id)
@@ -208,7 +225,8 @@ IMPORTANTE:
                 logger.info(f"Invio messaggio unificato per sessione {session_id}")
                 
                 try:
-                    ai_result = await self.agent.a_run(unified_prompt)
+                    agent = await self._get_agent()
+                    ai_result = await agent.a_run(unified_prompt)
                     ai_response = ai_result.text
                     log_capture.add_log("INFO", "AI response received")
                     
@@ -402,7 +420,7 @@ IMPORTANTE:
     async def is_available(self) -> bool:
         """Verifica se il servizio è disponibile"""
         try:
-            return self.agent is not None and self.client is not None
+            return self.client is not None
         except:
             return False
 
@@ -410,7 +428,8 @@ IMPORTANTE:
         """Esegue un health check del servizio"""
         try:
             # Test semplice con l'AI
-            test_result = await self.agent.a_run("Rispondi solo con 'OK'")
+            agent = await self._get_agent()
+            test_result = await agent.a_run("Rispondi solo con 'OK'")
             return {
                 "status": "healthy",
                 "ai_response": "OK" in test_result.text,

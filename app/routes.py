@@ -14,8 +14,8 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select, text
 
 from app.config import Settings, get_settings
-from app.models.database_models import SessionModel, MessageModel
-from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
+from app.models.database_models import SessionModel, MessageModel, SystemPromptModel
+from app.services.system_prompt_service import SystemPromptService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
 from app.database import get_db
 import subprocess
@@ -378,8 +378,190 @@ async def unified_agent_health_check():
         }
 
 
-@router.get("/api/execute/{command}")
-async def execute_command(command: str):
+@router.get("/system-prompts", response_class=HTMLResponse)
+async def system_prompts_dashboard(request: Request):
+    """Dashboard per gestire i system prompts"""
+    try:
+        prompts = await SystemPromptService.get_all_prompts()
+        
+        # Converti in dizionari per il template
+        prompts_data = []
+        for prompt in prompts:
+            prompts_data.append({
+                'id': prompt.id,
+                'name': prompt.name,
+                'content': prompt.content[:200] + "..." if len(prompt.content) > 200 else prompt.content,
+                'is_active': prompt.is_active,
+                'version': prompt.version,
+                'description': prompt.description,
+                'created_at': prompt.created_at,
+                'updated_at': prompt.updated_at
+            })
+        
+        settings = get_settings()
+        
+        return templates.TemplateResponse(
+            "system_prompts.html",
+            {
+                "request": request,
+                "prompts": prompts_data,
+                "app_version": settings.app_version
+            }
+        )
+        
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard system prompts: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Errore nel caricamento della dashboard: {str(e)}"
+        )
+
+
+# API endpoints per gestire i system prompts
+@router.get("/api/system-prompts")
+async def get_system_prompts():
+    """Ottiene tutti i system prompts"""
+    try:
+        prompts = await SystemPromptService.get_all_prompts()
+        return [
+            {
+                'id': p.id,
+                'name': p.name,
+                'content': p.content,
+                'is_active': p.is_active,
+                'version': p.version,
+                'description': p.description,
+                'created_at': p.created_at.isoformat(),
+                'updated_at': p.updated_at.isoformat()
+            }
+            for p in prompts
+        ]
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero dei system prompts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/system-prompts/{prompt_id}")
+async def get_system_prompt(prompt_id: int):
+    """Ottiene un system prompt specifico"""
+    try:
+        async for db in get_db():
+            result = await db.execute(
+                select(SystemPromptModel).where(SystemPromptModel.id == prompt_id)
+            )
+            prompt = result.scalar_one_or_none()
+            
+            if not prompt:
+                raise HTTPException(status_code=404, detail="Prompt non trovato")
+            
+            return {
+                'id': prompt.id,
+                'name': prompt.name,
+                'content': prompt.content,
+                'is_active': prompt.is_active,
+                'version': prompt.version,
+                'description': prompt.description,
+                'created_at': prompt.created_at.isoformat(),
+                'updated_at': prompt.updated_at.isoformat()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero del system prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    """Ottiene il system prompt attivo"""
+    try:
+        content = await SystemPromptService.get_active_prompt()
+        if not content:
+            raise HTTPException(status_code=404, detail="Nessun prompt attivo trovato")
+        return {"content": content}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero del prompt attivo: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/system-prompts")
+async def create_system_prompt(name: str, content: str, version: str = "1.0", description: str = None):
+    """Crea un nuovo system prompt"""
+    try:
+        prompt = await SystemPromptService.create_prompt(name, content, version, description)
+        if not prompt:
+            raise HTTPException(status_code=400, detail="Errore nella creazione del prompt")
+        
+        return {
+            'id': prompt.id,
+            'name': prompt.name,
+            'content': prompt.content,
+            'is_active': prompt.is_active,
+            'version': prompt.version,
+            'description': prompt.description,
+            'created_at': prompt.created_at.isoformat(),
+            'updated_at': prompt.updated_at.isoformat()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nella creazione del system prompt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/api/system-prompts/{prompt_id}")
+async def update_system_prompt(prompt_id: int, name: str = None, content: str = None, 
+                              version: str = None, description: str = None):
+    """Aggiorna un system prompt esistente"""
+    try:
+        success = await SystemPromptService.update_prompt(prompt_id, name, content, version, description)
+        if not success:
+            raise HTTPException(status_code=404, detail="Prompt non trovato")
+        
+        return {"message": "Prompt aggiornato con successo"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nell'aggiornamento del system prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/system-prompts/{prompt_id}/activate")
+async def activate_system_prompt(prompt_id: int):
+    """Attiva un system prompt"""
+    try:
+        success = await SystemPromptService.set_active_prompt(prompt_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Prompt non trovato")
+        
+        return {"message": "Prompt attivato con successo"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nell'attivazione del system prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/api/system-prompts/{prompt_id}")
+async def delete_system_prompt(prompt_id: int):
+    """Elimina un system prompt"""
+    try:
+        success = await SystemPromptService.delete_prompt(prompt_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Prompt non trovato")
+        
+        return {"message": "Prompt eliminato con successo"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nell'eliminazione del system prompt {prompt_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     """Endpoint API per eseguire comandi del server script"""
     try:
         from app.main import logger
