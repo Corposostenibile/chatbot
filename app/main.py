@@ -11,6 +11,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
+from dotenv import load_dotenv
+
+# Carica le variabili d'ambiente da .env.local
+load_dotenv('.env.local')
 
 from .config import Settings, settings
 from app.models.lifecycle import LifecycleResponse

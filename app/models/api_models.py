@@ -33,3 +33,19 @@ class HealthCheck(BaseModel):
     status: str
     version: str
     environment: str
+
+
+class SystemPromptCreate(BaseModel):
+    """Modello per creare un system prompt"""
+    name: str
+    content: str
+    version: str = "1.0"
+    description: Optional[str] = None
+
+
+class SystemPromptUpdate(BaseModel):
+    """Modello per aggiornare un system prompt"""
+    name: Optional[str] = None
+    content: Optional[str] = None
+    version: Optional[str] = None
+    description: Optional[str] = None

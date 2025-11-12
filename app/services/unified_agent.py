@@ -24,6 +24,8 @@ from app.models.database_models import SessionModel, MessageModel
 from app.logger_config import log_capture
 import json as json_lib
 
+from app.services.system_prompt_service import SystemPromptService
+
 
 class ChatbotError(Exception):
     """Eccezione base per errori del chatbot"""
@@ -165,16 +167,16 @@ INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage el
 
 FORMATO RISPOSTA RICHIESTO:
 Devi rispondere SEMPRE in questo formato JSON:
-{
+{{
     "messages": "La tua risposta completa" OPPURE [
-        {"text": "Prima parte del messaggio", "delay_ms": 1000},
-        {"text": "Seconda parte", "delay_ms": 2000}
+        {{"text": "Prima parte del messaggio", "delay_ms": 1000}},
+        {{"text": "Seconda parte", "delay_ms": 2000}}
     ],
     "should_change_lifecycle": true/false,
     "new_lifecycle": "nome_lifecycle",
     "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
     "confidence": 0.0-1.0
-}
+}}
 
 IMPORTANTE:
 - Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti

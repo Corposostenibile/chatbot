@@ -7,20 +7,20 @@ import time
 from datetime import datetime
 from typing import Dict
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 
-from app.config import Settings, get_settings
+from app.config import get_settings
 from app.models.database_models import SessionModel, MessageModel, SystemPromptModel
 from app.services.system_prompt_service import SystemPromptService
-from app.models.api_models import ChatMessage, ChatResponse, HealthCheck
+from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
 from app.database import get_db
 import subprocess
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 
 # Crea il router
 router = APIRouter()
@@ -487,22 +487,27 @@ async def get_system_prompt(prompt_id: int):
 
 
 @router.post("/api/system-prompts")
-async def create_system_prompt(name: str, content: str, version: str = "1.0", description: str = None):
+async def create_system_prompt(prompt: SystemPromptCreate):
     """Crea un nuovo system prompt"""
     try:
-        prompt = await SystemPromptService.create_prompt(name, content, version, description)
-        if not prompt:
+        created_prompt = await SystemPromptService.create_prompt(
+            name=prompt.name,
+            content=prompt.content,
+            version=prompt.version,
+            description=prompt.description
+        )
+        if not created_prompt:
             raise HTTPException(status_code=400, detail="Errore nella creazione del prompt")
         
         return {
-            'id': prompt.id,
-            'name': prompt.name,
-            'content': prompt.content,
-            'is_active': prompt.is_active,
-            'version': prompt.version,
-            'description': prompt.description,
-            'created_at': prompt.created_at.isoformat(),
-            'updated_at': prompt.updated_at.isoformat()
+            'id': created_prompt.id,
+            'name': created_prompt.name,
+            'content': created_prompt.content,
+            'is_active': created_prompt.is_active,
+            'version': created_prompt.version,
+            'description': created_prompt.description,
+            'created_at': created_prompt.created_at.isoformat(),
+            'updated_at': created_prompt.updated_at.isoformat()
         }
     except HTTPException:
         raise
@@ -513,11 +518,16 @@ async def create_system_prompt(name: str, content: str, version: str = "1.0", de
 
 
 @router.put("/api/system-prompts/{prompt_id}")
-async def update_system_prompt(prompt_id: int, name: str = None, content: str = None, 
-                              version: str = None, description: str = None):
+async def update_system_prompt(prompt_id: int, prompt: SystemPromptUpdate):
     """Aggiorna un system prompt esistente"""
     try:
-        success = await SystemPromptService.update_prompt(prompt_id, name, content, version, description)
+        success = await SystemPromptService.update_prompt(
+            prompt_id=prompt_id,
+            name=prompt.name,
+            content=prompt.content,
+            version=prompt.version,
+            description=prompt.description
+        )
         if not success:
             raise HTTPException(status_code=404, detail="Prompt non trovato")
         
