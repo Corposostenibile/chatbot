@@ -104,7 +104,7 @@ server_start() {
     create_directories
 
     print_subheader "Avvio Servizi Docker"
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
+    docker-compose up -d
 
     print_subheader "Attesa Avvio Servizi"
     sleep 5
@@ -133,7 +133,7 @@ server_stop() {
     print_header "🛑 ARRESTO SERVER"
 
     print_subheader "Arresto Servizi Docker"
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml down
+    docker-compose down
 
     print_status "Server arrestato"
 }
@@ -239,7 +239,7 @@ ssl_setup() {
     print_status "DNS risolto correttamente"
 
     print_subheader "Avvio Nginx per Challenge"
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d nginx
+    docker-compose up -d nginx
     sleep 3
 
     print_subheader "Ottieni Certificato SSL"
@@ -254,7 +254,7 @@ ssl_setup() {
         print_status "Certificato ottenuto con successo"
 
         print_subheader "Riavvio Nginx"
-        docker-compose -f docker-compose.yml -f docker-compose.override.yml restart nginx
+        docker-compose restart nginx
 
         print_subheader "Configurazione Cron per Rinnovo"
         setup_ssl_cron
@@ -274,7 +274,7 @@ ssl_renew() {
     print_header "🔄 RINNOVO CERTIFICATO SSL"
 
     print_subheader "Avvio Nginx"
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d nginx
+    docker-compose up -d nginx
     sleep 3
 
     print_subheader "Rinnovo Certificato"
@@ -284,7 +284,7 @@ ssl_renew() {
         print_status "Certificato rinnovato"
 
         print_subheader "Riavvio Nginx"
-        docker-compose -f docker-compose.yml -f docker-compose.override.yml restart nginx
+        docker-compose restart nginx
 
         print_status "Rinnovo completato"
     else
