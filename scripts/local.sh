@@ -94,22 +94,54 @@ install_deps() {
     poetry config virtualenvs.create false
     poetry config virtualenvs.in-project false
 
-    # Install dependencies
+    # Update lock file if needed
     cd "$PROJECT_ROOT"
+    poetry lock
+
+    # Install dependencies
     poetry install
 
     log "Dipendenze installate ✓"
 }
 
-# Initialize local database (SQLite or PostgreSQL)
+# Initialize local database (PostgreSQL)
 init_db() {
     log "Inizializzazione database locale..."
 
     source "$VENV_PATH/bin/activate"
 
-    # Create .env.local if it doesn't exist
-    if [[ ! -f "$PROJECT_ROOT/.env.local" ]]; then
-        cat > "$PROJECT_ROOT/.env.local" << 'EOF'
+    # Generate random secret key
+    SECRET_KEY="$(openssl rand -hex 16)"
+
+    # Fixed database credentials for localhost
+    DATABASE_URL="postgresql+asyncpg://chatbot:chatbot_password@localhost:5432/chatbot"
+    ALEMBIC_URL="postgresql://chatbot:chatbot_password@localhost:5432/chatbot"
+
+    # Check if PostgreSQL is running on localhost
+    log "Attesa che PostgreSQL sia pronto..."
+    for i in {1..30}; do
+        if pg_isready -h localhost -p 5432 &> /dev/null; then
+            log "PostgreSQL pronto ✓"
+            break
+        fi
+        sleep 1
+    done
+    if ! pg_isready -h localhost -p 5432 &> /dev/null; then
+        error "PostgreSQL non è diventato pronto entro 30 secondi. Controlla il container."
+        exit 1
+    fi
+
+    # Note: Database user and database are already created by the container
+
+    # Create or update .env.local
+    if [[ -f "$PROJECT_ROOT/.env.local" ]]; then
+        # Update existing .env.local
+        sed -i "s|^SECRET_KEY=.*|SECRET_KEY=\"$SECRET_KEY\"|" "$PROJECT_ROOT/.env.local"
+        sed -i "s|^DATABASE_URL=.*|DATABASE_URL=\"$DATABASE_URL\"|" "$PROJECT_ROOT/.env.local"
+        warn ".env.local aggiornato con nuove credenziali"
+    else
+        # Create .env.local
+        cat > "$PROJECT_ROOT/.env.local" << EOF
 # Configurazione dell'applicazione
 APP_NAME="Chatbot API"
 APP_VERSION="0.1.0"
@@ -118,15 +150,15 @@ LOG_LEVEL="DEBUG"
 
 # Configurazione server
 HOST="0.0.0.0"
-PORT=8081
+PORT=8082
 
 # Configurazione sicurezza
-SECRET_KEY="dev-secret-key-change-in-production"
+SECRET_KEY="$SECRET_KEY"
 ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Database
-DATABASE_URL="postgresql+asyncpg://chatbot:password@localhost:5432/chatbot"
+DATABASE_URL="$DATABASE_URL"
 
 # Google Cloud
 GOOGLE_CLOUD_PROJECT=""
@@ -137,7 +169,13 @@ ANTHROPIC_API_KEY=""
 
 GOOGLE_AI_API_KEY="AIzaSyDW1hsoLYeeSt0F2wMOD7txYB6o60pfryQ"
 EOF
-        warn "Creato .env.local - configurare le API keys e il database"
+        warn "Creato .env.local - configurare le API keys se necessario"
+    fi
+
+    # Update alembic.ini with the database URL
+    if [[ -f "$PROJECT_ROOT/alembic.ini" ]]; then
+        sed -i "s|^sqlalchemy.url = .*|sqlalchemy.url = $ALEMBIC_URL|" "$PROJECT_ROOT/alembic.ini"
+        log "alembic.ini aggiornato con DATABASE_URL"
     fi
 
     # Load environment variables
@@ -156,12 +194,6 @@ EOF
         mkdir -p "$(dirname "$DB_PATH")"
     elif [[ "$DATABASE_URL" == *"postgresql"* ]]; then
         log "Usando PostgreSQL per lo sviluppo locale"
-        # Check if PostgreSQL is running
-        if ! pg_isready -h localhost -p 5432 &> /dev/null; then
-            warn "PostgreSQL non sembra essere in esecuzione su localhost:5432"
-            warn "Assicurati che PostgreSQL sia installato e in esecuzione"
-            warn "Oppure usa SQLite modificando DATABASE_URL in .env.local"
-        fi
     else
         warn "Tipo database non riconosciuto in DATABASE_URL"
     fi
@@ -179,7 +211,6 @@ EOF
     python3 -c "
 import asyncio
 import os
-os.environ.setdefault('DATABASE_URL', '$DATABASE_URL')
 
 from app.database import engine, Base
 from app.services.system_prompt_service import SystemPromptService
@@ -191,6 +222,25 @@ async def init_db():
 
 asyncio.run(init_db())
 " 2>/dev/null || warn "Impossibile inizializzare il prompt di sistema"
+
+    # Verify database connection
+    log "Verifica connessione database..."
+    python3 -c "
+import asyncio
+from sqlalchemy import text
+
+from app.database import engine
+
+async def test_db():
+    try:
+        async with engine.begin() as conn:
+            await conn.execute(text('SELECT 1'))
+        print('✅ Connessione database OK')
+    except Exception as e:
+        print(f'❌ Errore connessione database: {e}')
+
+asyncio.run(test_db())
+" 2>/dev/null || warn "Errore verifica connessione database"
 
     log "Database locale inizializzato ✓"
 }
@@ -212,7 +262,7 @@ run_app() {
         export DEBUG=true
         export LOG_LEVEL=debug
         export HOST="127.0.0.1"
-        export PORT=8081
+        export PORT=8082
     fi
 
     cd "$PROJECT_ROOT"
@@ -241,7 +291,7 @@ except Exception as e:
     # Run with uvicorn
     uvicorn app.main:app \
         --host "${HOST:-127.0.0.1}" \
-        --port "${PORT:-8081}" \
+        --port "${PORT:-8082}" \
         --reload \
         --log-level "${LOG_LEVEL:-info}"
 }
@@ -345,6 +395,47 @@ clean_env() {
     log "Pulizia completata ✓"
 }
 
+# Start database container
+start_db() {
+    log "Avvio container PostgreSQL..."
+
+    if ! command -v docker &> /dev/null; then
+        error "Docker non trovato. Installa Docker per utilizzare il database locale."
+        exit 1
+    fi
+
+    if ! command -v docker-compose &> /dev/null; then
+        error "docker-compose non trovato. Installa docker-compose."
+        exit 1
+    fi
+
+    cd "$PROJECT_ROOT"
+    docker-compose -p chatbot-local -f docker-compose.local.yml up -d --remove-orphans postgres
+
+    log "Container PostgreSQL avviato ✓"
+    log "Attendi qualche secondo per l'inizializzazione del database"
+}
+
+# Stop database container
+stop_db() {
+    log "Arresto container PostgreSQL..."
+
+    if ! command -v docker &> /dev/null; then
+        error "Docker non trovato."
+        exit 1
+    fi
+
+    if ! command -v docker-compose &> /dev/null; then
+        error "docker-compose non trovato."
+        exit 1
+    fi
+
+    cd "$PROJECT_ROOT"
+    docker-compose -p chatbot-local -f docker-compose.local.yml down
+
+    log "Container PostgreSQL arrestato ✓"
+}
+
 # Show status
 show_status() {
     echo "=== Status Sviluppo Locale ==="
@@ -377,10 +468,10 @@ show_status() {
                 echo -e "🗄️  Database: ${YELLOW}SQLite (non inizializzato)${NC}"
             fi
         elif [[ "$DATABASE_URL" == *"postgresql"* ]]; then
-            if pg_isready -h localhost -p 5432 &> /dev/null; then
-                echo -e "🗄️  Database: ${GREEN}PostgreSQL (localhost:5432)${NC}"
+            if docker ps | grep -q chatbot_postgres_local; then
+                echo -e "🗄️  Database: ${GREEN}PostgreSQL (container attivo)${NC}"
             else
-                echo -e "🗄️  Database: ${YELLOW}PostgreSQL (server non raggiungibile)${NC}"
+                echo -e "🗄️  Database: ${YELLOW}PostgreSQL (container non attivo)${NC}"
             fi
         else
             echo -e "🗄️  Database: ${YELLOW}Configurazione sconosciuta${NC}"
@@ -414,6 +505,8 @@ show_status() {
     echo "local-setup      - Configurazione iniziale completa"
     echo "local-install    - Installa dipendenze"
     echo "local-db-init    - Inizializza database locale"
+    echo "local-db-start   - Avvia container PostgreSQL"
+    echo "local-db-stop    - Ferma container PostgreSQL"
     echo "local-run        - Avvia applicazione"
     echo "local-test       - Esegue test"
     echo "local-lint       - Esegue linting"
@@ -430,7 +523,15 @@ setup_local() {
     check_python
     setup_venv
     install_deps
+    start_db
     init_db
+
+    # Load environment variables for final messages
+    if [[ -f "$PROJECT_ROOT/.env.local" ]]; then
+        set -a
+        source "$PROJECT_ROOT/.env.local"
+        set +a
+    fi
 
     log "=== Configurazione Completata ==="
     echo ""
@@ -440,7 +541,7 @@ setup_local() {
     echo "Per eseguire i test:"
     echo "  ./scripts/local.sh local-test"
     echo ""
-    echo "Dashboard disponibile su: http://127.0.0.1:8081"
+    echo "Dashboard disponibile su: http://${HOST:-127.0.0.1}:${PORT:-8081}"
 }
 
 # Main function
@@ -458,6 +559,14 @@ main() {
         "db-init"|"local-db-init")
             check_project_root
             init_db
+            ;;
+        "db-start"|"local-db-start")
+            check_project_root
+            start_db
+            ;;
+        "db-stop"|"local-db-stop")
+            check_project_root
+            stop_db
             ;;
         "run"|"local-run")
             check_project_root
@@ -488,6 +597,8 @@ main() {
             echo "  local-setup      - Configurazione iniziale completa"
             echo "  local-install    - Installa dipendenze"
             echo "  local-db-init    - Inizializza database locale"
+            echo "  local-db-start   - Avvia container PostgreSQL"
+            echo "  local-db-stop    - Ferma container PostgreSQL"
             echo "  local-run        - Avvia applicazione"
             echo "  local-test       - Esegue test"
             echo "  local-lint       - Esegue linting"
