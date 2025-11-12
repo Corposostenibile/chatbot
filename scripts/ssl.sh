@@ -101,7 +101,7 @@ get_certificate() {
 
     # Assicurati che Nginx sia attivo
     print_status "Assicurandosi che Nginx sia attivo..."
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d nginx
+    docker-compose up -d nginx
 
     # Aspetta che Nginx sia pronto
     sleep 5
@@ -136,7 +136,7 @@ get_certificate() {
 
         # Riavvia Nginx per applicare i nuovi certificati
         print_status "Riavviando Nginx..."
-        docker-compose -f docker-compose.yml -f docker-compose.override.yml restart nginx
+        docker-compose restart nginx
 
         print_status "🎉 SSL configurato! Il sito è ora disponibile su https://$domain"
     else
@@ -159,14 +159,14 @@ renew_certificate() {
     print_status "Rinnovando certificato SSL..."
 
     # Assicurati che Nginx sia attivo per servire i file di challenge
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d nginx
+    docker-compose up -d nginx
     sleep 3
 
     # Rinnova usando webroot
     $SUDO certbot renew --webroot --webroot-path "$webroot"
 
     # Riavvia Nginx per applicare i nuovi certificati
-    docker-compose -f docker-compose.yml -f docker-compose.override.yml restart nginx
+    docker-compose restart nginx
 
     print_status "✅ Certificato rinnovato con successo!"
 }
