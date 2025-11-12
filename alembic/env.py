@@ -18,7 +18,8 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+from app.database import Base
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -57,8 +58,20 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Try to get database URL from environment or config
+    import os
+    database_url = os.getenv("DATABASE_URL", "postgresql://chatbot:chatbot_password@postgres:5432/chatbot")
+    
+    # Force synchronous driver for Alembic
+    if database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+    elif database_url.startswith("postgresql://"):
+        pass  # Already synchronous
+    else:
+        database_url = "postgresql://chatbot:chatbot_password@postgres:5432/chatbot"
+
     connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        {"sqlalchemy.url": database_url},
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )

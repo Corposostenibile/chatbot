@@ -145,6 +145,25 @@ ISTRUZIONI SPECIFICHE PER QUESTO LIFECYCLE:
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
+
+FORMATO RISPOSTA RICHIESTO:
+Devi rispondere SEMPRE in questo formato JSON:
+{
+    "messages": "La tua risposta completa" OPPURE [
+        {"text": "Prima parte del messaggio", "delay_ms": 1000},
+        {"text": "Seconda parte", "delay_ms": 2000}
+    ],
+    "should_change_lifecycle": true/false,
+    "new_lifecycle": "nome_lifecycle",
+    "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
+    "confidence": 0.0-1.0
+}
+
+IMPORTANTE:
+- Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti
+- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo)
+- Cambia lifecycle solo se sei sicuro al 70% o più (confidence >= 0.7)
+- La risposta deve essere SEMPRE un JSON valido
 """
 
         return unified_prompt

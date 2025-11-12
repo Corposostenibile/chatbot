@@ -10,7 +10,7 @@ services:
       # Mount del codice per hot reload
       - ./app:/app/app
       - ./.env:/app/.env
-      # Mount della cartella alembic per migrazioni
+      # Mount della cartella alembic per migrazioni (read-write)
       - ./alembic:/app/alembic
       # Mount degli script
       - ./scripts:/app/scripts

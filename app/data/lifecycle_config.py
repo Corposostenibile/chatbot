@@ -35,25 +35,6 @@ ISTRUZIONI GENERALI:
 9. FAI SEMPRE UNA DOMANDA alla fine del tuo messaggio per continuare la conversazione e mantenere il dialogo attivo e non arrivare mai ad un punto morto
 10. IMPORTANTE: Nel lifecycle LINK_DA_INVIARE, passa SUBITO a LINK_INVIATO al primo segno positivo dell'utente (si, magari, va bene, ok, preferenze di orario) - NON chiedere ulteriori conferme
 11. CRITICO: NUOVA_LEAD è solo un messaggio automatico di benvenuto - passa SUBITO a CONTRASSEGNATO alla prima risposta dell'utente (anche solo un saluto)
-
-FORMATO RISPOSTA RICHIESTO:
-Devi rispondere SEMPRE in questo formato JSON:
-{
-    "messages": "La tua risposta completa" OPPURE [
-        {"text": "Prima parte del messaggio", "delay_ms": 1000},
-        {"text": "Seconda parte", "delay_ms": 2000}
-    ],
-    "should_change_lifecycle": true/false,
-    "new_lifecycle": "nome_lifecycle",
-    "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
-    "confidence": 0.0-1.0
-}
-
-IMPORTANTE:
-- Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti
-- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo)
-- Cambia lifecycle solo se sei sicuro al 70% o più (confidence >= 0.7)
-- La risposta deve essere SEMPRE un JSON valido
 """
 
 # Configurazione degli script per ogni lifecycle (senza triggers_to_next)

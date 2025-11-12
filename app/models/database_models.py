@@ -34,3 +34,16 @@ class MessageModel(Base):
 
     # Relationship
     session: Mapped["SessionModel"] = relationship("SessionModel", back_populates="messages")
+
+
+class SystemPromptModel(Base):
+    __tablename__ = "system_prompts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)  # Nome identificativo del prompt
+    content: Mapped[str] = mapped_column(Text)  # Contenuto del prompt
+    is_active: Mapped[bool] = mapped_column(default=True)  # Se è il prompt attivo
+    version: Mapped[str] = mapped_column(String, default="1.0")  # Versione del prompt
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Descrizione del prompt
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -44,6 +44,8 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Copia il codice dell'applicazione
 COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./
 COPY .env.example ./.env
 
 # Cambia proprietario dei file all'utente appuser

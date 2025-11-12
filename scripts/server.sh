@@ -673,8 +673,94 @@ troubleshoot() {
 }
 
 # ===============================
-# MANUTENZIONE
+# GESTIONE DATABASE
 # ===============================
+
+db_migrate() {
+    print_header "🗄️ MIGRAZIONI DATABASE"
+
+    print_subheader "Verifica Container Database"
+    if ! docker-compose ps postgres | grep -q "Up"; then
+        print_error "Container PostgreSQL non attivo"
+        print_info "Avvia il database con: $0 server-start"
+        exit 1
+    fi
+
+    print_subheader "Esecuzione Migrazioni Alembic"
+    if docker-compose exec chatbot alembic -c /home/manu/chatbot/alembic.ini upgrade head; then
+        print_status "Migrazioni eseguite con successo"
+    else
+        print_error "Errore nell'esecuzione delle migrazioni"
+        print_info "Controlla i log del container chatbot"
+        exit 1
+    fi
+}
+
+db_create() {
+    local message="${1:-Auto-generated migration}"
+
+    print_header "🆕 CREAZIONE MIGRAZIONE DATABASE"
+
+    print_subheader "Generazione Migrazione Alembic"
+    if docker-compose exec chatbot alembic -c /home/manu/chatbot/alembic.ini revision --autogenerate -m "$message"; then
+        print_status "Migrazione creata con successo"
+        print_info "Ricorda di eseguire: $0 db-migrate"
+    else
+        print_error "Errore nella creazione della migrazione"
+        exit 1
+    fi
+}
+
+db_status() {
+    print_header "📊 STATUS DATABASE"
+
+    print_subheader "Stato Migrazioni Alembic"
+    if docker-compose exec chatbot alembic current; then
+        print_status "Stato migrazioni recuperato"
+    else
+        print_error "Errore nel recupero dello stato migrazioni"
+    fi
+
+    echo
+
+    print_subheader "Stato Database"
+    if docker-compose exec postgres pg_isready -U chatbot >/dev/null 2>&1; then
+        print_status "Database accessibile"
+
+        # Mostra tabelle esistenti
+        echo "Tabelle presenti:"
+        docker-compose exec postgres psql -U chatbot -c "\dt" 2>/dev/null || print_warning "Impossibile recuperare lista tabelle"
+    else
+        print_error "Database non accessibile"
+    fi
+}
+
+db_reset() {
+    print_header "🔄 RESET DATABASE"
+
+    print_warning "ATTENZIONE: Questa operazione cancellerà tutti i dati!"
+    read -p "Sei sicuro di voler resettare il database? (scrivi 'RESET' per confermare): " confirm
+
+    if [ "$confirm" != "RESET" ]; then
+        print_info "Operazione annullata"
+        exit 0
+    fi
+
+    print_subheader "Arresto Servizi"
+    docker-compose stop chatbot
+
+    print_subheader "Reset Database"
+    docker-compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS chatbot;" 2>/dev/null || true
+    docker-compose exec postgres psql -U postgres -c "CREATE DATABASE chatbot;" 2>/dev/null || true
+
+    print_subheader "Riavvio Servizi"
+    docker-compose start chatbot
+
+    print_subheader "Esecuzione Migrazioni"
+    db_migrate
+
+    print_status "Database resettato con successo"
+}
 
 maintenance_update() {
     print_header "🔄 AGGIORNAMENTO SISTEMA"
@@ -750,6 +836,12 @@ show_help() {
     echo "  monitor-health         Controlli health automatici"
     echo "  monitor-resources      Monitoraggio risorse"
     echo ""
+    echo "🗄️  DATABASE:"
+    echo "  db-migrate             Esegue migrazioni Alembic"
+    echo "  db-create [messaggio]  Crea nuova migrazione"
+    echo "  db-status              Mostra status database"
+    echo "  db-reset               Reset completo database"
+    echo ""
     echo "🔧 TROUBLESHOOTING:"
     echo "  troubleshoot           Diagnosi automatica problemi"
     echo ""
@@ -764,6 +856,8 @@ show_help() {
     echo "  $0 server-start        # Avvia il server"
     echo "  $0 ssl-setup          # Setup SSL"
     echo "  $0 dependencies-update # Aggiorna dipendenze"
+    echo "  $0 db-migrate         # Esegue migrazioni"
+    echo "  $0 db-create 'Add new table' # Crea migrazione"
     echo "  $0 monitor-health     # Controlla health"
     echo "  $0 server-logs nginx  # Logs Nginx"
     echo ""
@@ -793,6 +887,12 @@ case "${1:-help}" in
     # Monitoraggio
     monitor-health) monitor_health ;;
     monitor-resources) monitor_resources ;;
+
+    # Database
+    db-migrate) db_migrate ;;
+    db-create) db_create "$2" ;;
+    db-status) db_status ;;
+    db-reset) db_reset ;;
 
     # Troubleshooting
     troubleshoot) troubleshoot ;;
