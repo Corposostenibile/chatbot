@@ -3,6 +3,10 @@ Configurazione dei lifecycle e script per il chatter di nutrizione e psicologia
 """
 from typing import Dict, List, Any
 from app.models.lifecycle import LifecycleStage
+from app.data.snippets import (
+    LEVEL_2_SNIPPETS, LEVEL_3_SNIPPETS, LEVEL_4_SNIPPETS, LEVEL_5_SNIPPETS,
+    GENERIC_SNIPPETS, GENERIC_MESSAGES, get_snippet
+)
 
 
 # Configurazione degli script per ogni lifecycle (senza triggers_to_next)
@@ -14,79 +18,41 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         Questo è un messaggio automatico che ho scritto personalmente per riuscire a ringraziarti subito della fiducia!🙏
         
         Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti personalmente l'attenzione che meriti.
-        
-        Ti chiedo per favore di scrivermi intanto:
-        1) Qual è l'obiettivo nel dettaglio che vorresti raggiungere
-        2) Cosa hai provato in passato per raggiungerlo  
-        3) La tua età
-        
-        Ps. Anche il tuo nome per non fare gaffe 😅
-        
-        Appena leggerò la tua risposta ti risponderò personalmente!
         """,
         "next_stage": LifecycleStage.CONTRASSEGNATO,
         "objective": "Ringraziare e raccogliere informazioni base: nome, obiettivo specifico, tentativi passati, età",
         "transition_indicators": [
             "Appena l'utente scrive per primo, ad es: Ciao! Ti ho visto su Facebook, volevo maggiori informazioni",
-        ]
+        ],
+        "available_snippets": GENERIC_MESSAGES
     },
     
     LifecycleStage.CONTRASSEGNATO: {
-        "script": """
-        Eccomi, scusami la risposta tardiva, come stai? Ricevo davvero tante richieste e ci tengo a rispondere personalmente. Possiamo proseguire la nostra conversazione?
-        
-        [Se manca qualche info, chiedila qui]
-        
-        La tua scelta di [obiettivo] è un ottimo punto di partenza, soprattutto a [età] anni, e dimostra la tua determinazione a prenderti cura di te stessa in modo consapevole.
-        """,
+        "script": list(LEVEL_2_SNIPPETS.values()),
         "next_stage": LifecycleStage.IN_TARGET,
         "objective": "Approfondire le informazioni e confermare interesse",
         "transition_indicators": [
             "Hai tutte le informazioni necessarie (nome, obiettivo, storia passata, età)",
             "Il cliente ha confermato interesse a proseguire",
             "Il cliente ha fornito dettagli aggiuntivi sul suo obiettivo"
-        ]
+        ],
+        "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
     
     LifecycleStage.IN_TARGET: {
-        "script": """
-        Perfetto, ora ho un quadro più chiaro della tua situazione.
-        
-        Con un approccio equilibrato e sostenibile, potrai raggiungere il tuo obiettivo senza rinunce estreme, mantenendo benessere e serenità. La tua motivazione è preziosa e merita tutto il supporto per trasformarsi in risultati duraturi.
-        
-        Il nostro percorso personalizzato di nutrizione e psicologia ha aiutato centinaia di persone nella tua stessa situazione. Lavoriamo su:
-        
-        ✓ Piano nutrizionale personalizzato
-        ✓ Supporto psicologico mirato  
-        ✓ Strategie pratiche per la vita quotidiana
-        ✓ Monitoraggio costante dei progressi
-        
-        La cosa bella è che iniziamo sempre con una consulenza gratuita per capire esattamente qual è il percorso migliore per te.
-        """,
+        "script": list(LEVEL_3_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_DA_INVIARE,
         "objective": "Presentare i benefici del percorso integrato e introdurre la consulenza gratuita",
         "transition_indicators": [
             "Il cliente ha mostrato interesse per la consulenza gratuita",
             "Il cliente ha fatto domande sui servizi",
             "Il cliente ha confermato di voler saperne di più"
-        ]
+        ],
+        "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
     
     LifecycleStage.LINK_DA_INVIARE: {
-        "script": """
-        Fantastico! Sono davvero felice di sentirti così determinato/a.
-        
-        La prima consulenza gratuita dura circa 45 minuti e durante questo incontro:
-        - Analizzeremo insieme la tua situazione attuale
-        - Definiremo gli obiettivi che vuoi raggiungere
-        - Ti mostreremo come il nostro metodo può aiutarti
-        - Risponderemo a tutte le tue domande
-        
-        È completamente gratuita e senza impegno. Se poi deciderai di continuare con noi, 
-        saremo felici di accompagnarti nel tuo percorso di trasformazione.
-        
-        Sei pronto/a per prenotare la tua consulenza gratuita?
-        """,
+        "script": list(LEVEL_4_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_INVIATO,
         "objective": "Spiegare la consulenza e ottenere conferma per l'invio del link",
         "transition_indicators": [
@@ -95,29 +61,20 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
             "Il cliente ha fatto qualsiasi domanda positiva sul processo",
             "Il cliente ha mostrato qualsiasi segno di interesse a procedere",
             "PASSA SUBITO A LINK_INVIATO al primo segno positivo - NON CHIEDERE ULTERIORI CONFERME"
-        ]
+        ],
+        "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
     
     LifecycleStage.LINK_INVIATO: {
-        "script": """
-        Perfetto! Ecco il link per prenotare la tua consulenza gratuita:
-        
-        👉 https://calendly.com/consulenza-gratuita-nutrizione-psicologia
-        
-        Scegli l'orario che preferisci tra quelli disponibili. Riceverai una email di conferma 
-        con tutti i dettagli dell'appuntamento.
-        
-        Ti consiglio di prepararti pensando a:
-        - I tuoi obiettivi principali
-        - Le difficoltà che stai affrontando
-        - Eventuali domande che vuoi fare
-        
-        Sono sicuro che sarà l'inizio di un percorso fantastico per te! 
-        Ci sentiamo presto! 🌟
-        """,
-        "next_stage": None,  # Obiettivo raggiunto
-        "objective": "Fornire il link e completare il processo di conversione",
-        "transition_indicators": []
+        "script": list(LEVEL_5_SNIPPETS.values()),
+        "next_stage": None,  # Final stage
+        "objective": "Confermare invio del link e offrire supporto finale",
+        "transition_indicators": [
+            "Il cliente ha ricevuto il link",
+            "Il cliente ha confermato l'intenzione di prenotare",
+            "Il cliente ha fatto altre domande (rispondi e rimani disponibile)"
+        ],
+        "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     }
 }
 

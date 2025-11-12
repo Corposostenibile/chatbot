@@ -1,7 +1,7 @@
 """
 Modelli del database per sessioni e conversazioni
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import String, Integer, DateTime, Text, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,8 +16,8 @@ class SessionModel(Base):
     session_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     current_lifecycle: Mapped[LifecycleStage] = mapped_column(SQLEnum(LifecycleStage), default=LifecycleStage.NUOVA_LEAD)
     user_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationship
     messages: Mapped[List["MessageModel"]] = relationship("MessageModel", back_populates="session", order_by="MessageModel.timestamp")
@@ -30,7 +30,7 @@ class MessageModel(Base):
     session_id: Mapped[int] = mapped_column(Integer, ForeignKey("sessions.id"), index=True)
     role: Mapped[str] = mapped_column(String)  # "user" or "assistant"
     message: Mapped[str] = mapped_column(Text)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationship
     session: Mapped["SessionModel"] = relationship("SessionModel", back_populates="messages")
@@ -45,5 +45,5 @@ class SystemPromptModel(Base):
     is_active: Mapped[bool] = mapped_column(default=True)  # Se è il prompt attivo
     version: Mapped[str] = mapped_column(String, default="1.0")  # Versione del prompt
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Descrizione del prompt
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

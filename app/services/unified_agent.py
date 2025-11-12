@@ -3,8 +3,8 @@ Agente unificato che gestisce conversazione e lifecycle management in un'unica c
 """
 import json
 import time
-from typing import Dict, Optional, List
-from datetime import datetime
+from typing import Dict, Optional, List, Union
+from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
@@ -106,6 +106,178 @@ class UnifiedAgent:
         logger.info(f"Nuova sessione creata: {session_id}")
         return new_session
 
+    def _format_snippets_context(self, snippets: Dict[str, str]) -> str:
+        """Formatta gli snippet disponibili per il contesto del prompt"""
+        if not snippets:
+            return "Nessuno snippet disponibile per questa fase."
+        
+        snippets_list = []
+        for snippet_id, snippet_content in snippets.items():
+            snippets_list.append(f"- {snippet_id}: {snippet_content}")
+        
+        return "\n".join(snippets_list)
+
+    def _clean_ai_response(self, ai_response: str) -> str:
+        """Pulisce la risposta AI rimuovendo markdown e spazi extra"""
+        cleaned_response = ai_response.strip()
+        if cleaned_response.startswith("```json"):
+            cleaned_response = cleaned_response[7:]
+        if cleaned_response.endswith("```"):
+            cleaned_response = cleaned_response[:-3]
+        return cleaned_response.strip()
+
+    def _parse_ai_response(self, ai_response: str) -> Dict:
+        """Parssa la risposta JSON dell'AI"""
+        try:
+            cleaned_response = self._clean_ai_response(ai_response)
+            return json.loads(cleaned_response)
+        except json.JSONDecodeError as e:
+            logger.error(f"Errore nel parsing JSON: {e}")
+            logger.error(f"Risposta AI: {ai_response}")
+            raise ParsingError(f"Errore nel parsing della risposta AI: {str(e)}")
+
+    def _normalize_messages(self, messages: Union[str, List]) -> List[Dict[str, Union[str, int]]]:
+        """Normalizza i messaggi da stringa o lista eterogenea a lista uniforme"""
+        if isinstance(messages, str):
+            return [{"text": messages, "delay_ms": 0}]
+        elif isinstance(messages, list):
+            normalized_messages = []
+            for msg in messages:
+                if isinstance(msg, dict):
+                    normalized_messages.append({
+                        "text": msg.get("text", ""),
+                        "delay_ms": msg.get("delay_ms", 1000)
+                    })
+                else:
+                    normalized_messages.append({"text": str(msg), "delay_ms": 1000})
+            return normalized_messages
+        else:
+            return [{"text": str(messages), "delay_ms": 0}]
+
+    async def _call_ai_agent(self, prompt: str, context: str = "") -> str:
+        """Chiama l'agente AI e gestisce gli errori"""
+        try:
+            agent = await self._get_agent()
+            ai_result = await agent.a_run(prompt)
+            return ai_result.text
+        except Exception as ai_error:
+            logger.error(f"Errore con l'AI{context}: {ai_error}")
+            raise AIError(f"Errore nell'elaborazione della richiesta AI{context}: {str(ai_error)}")
+
+    async def _save_message_to_history(self, session_id: int, role: str, message: str, db: AsyncSession) -> None:
+        """Salva un messaggio nella cronologia"""
+        msg = MessageModel(
+            session_id=session_id,
+            role=role,
+            message=message,
+            timestamp=datetime.now(timezone.utc)
+        )
+        db.add(msg)
+        await db.commit()
+
+    async def _handle_lifecycle_transition(self, session: SessionModel, new_lifecycle_str: str, confidence: float, db: AsyncSession) -> bool:
+        """Gestisce la transizione del lifecycle se necessario"""
+        if confidence < 0.7:
+            return False
+            
+        try:
+            new_lifecycle = LifecycleStage[new_lifecycle_str.upper().replace(" ", "_")]
+            if new_lifecycle != session.current_lifecycle:
+                await self._update_session_lifecycle(session, new_lifecycle, db)
+                return True
+        except (KeyError, ValueError) as e:
+            logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
+            
+        return False
+
+    async def _process_ai_response(self, ai_response: str, session: SessionModel, db: AsyncSession) -> Dict:
+        """Elabora la risposta AI completa: parsing, normalizzazione, transizione"""
+        # Parse risposta AI
+        response_data = self._parse_ai_response(ai_response)
+        
+        # Estrai dati
+        messages = response_data.get("messages") or response_data.get("message", "Ciao! Come posso aiutarti oggi?")
+        should_change = response_data.get("should_change_lifecycle", False)
+        new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
+        reasoning = response_data.get("reasoning", "Risposta automatica")
+        confidence = response_data.get("confidence", 0.5)
+        
+        # Normalizza messaggi
+        normalized_messages = self._normalize_messages(messages)
+        
+        # Gestisci transizione lifecycle
+        lifecycle_changed = await self._handle_lifecycle_transition(session, new_lifecycle_str, confidence, db)
+        
+        return {
+            "messages": normalized_messages,
+            "should_change": should_change,
+            "new_lifecycle_str": new_lifecycle_str,
+            "reasoning": reasoning,
+            "confidence": confidence,
+            "lifecycle_changed": lifecycle_changed,
+            "full_message_text": " ".join([msg["text"] for msg in normalized_messages])
+        }
+
+    async def _handle_nuova_lead_special_case(self, session: SessionModel, user_message: str, db: AsyncSession) -> LifecycleResponse:
+        """Gestisce il caso speciale di NUOVA_LEAD"""
+        logger.info(f"GESTIONE SPECIALE NUOVA_LEAD per sessione {session.session_id}")
+        log_capture.add_log("INFO", "LIFECYCLE: NUOVA_LEAD - Usando script di default, passando a CONTRASSEGNATO")
+        
+        # Ottieni script NUOVA_LEAD
+        nuova_lead_config = LIFECYCLE_SCRIPTS[LifecycleStage.NUOVA_LEAD]
+        script_text = nuova_lead_config.get("script", "")
+        
+        # Salva messaggi nella cronologia
+        await self._save_message_to_history(session.id, "user", user_message, db)
+        await self._save_message_to_history(session.id, "assistant", script_text, db)
+        
+        # Transizione a CONTRASSEGNATO
+        previous_lifecycle = session.current_lifecycle
+        session.current_lifecycle = LifecycleStage.CONTRASSEGNATO
+        db.add(session)
+        await db.commit()
+        
+        log_capture.add_log("INFO", f"Lifecycle transitioned: {previous_lifecycle.value} → {LifecycleStage.CONTRASSEGNATO.value}")
+        
+        # Prepara messaggi risposta
+        messages = [{"text": script_text.strip(), "delay_ms": 0}]
+        
+        # Genera risposta CONTRASSEGNATO
+        session_refreshed = await db.get(SessionModel, session.id)
+        unified_prompt = await self._get_unified_prompt(session_refreshed, user_message, db)
+        log_capture.add_log("INFO", f"SCRIPT GUIDA (CONTRASSEGNATO)\n{unified_prompt}")
+        
+        logger.info(f"Generando risposta CONTRASSEGNATO per sessione {session.session_id}")
+        
+        # Chiama AI per CONTRASSEGNATO
+        ai_response = await self._call_ai_agent(unified_prompt, " (CONTRASSEGNATO)")
+        log_capture.add_log("INFO", "AI response received (CONTRASSEGNATO)")
+        
+        # Elabora risposta CONTRASSEGNATO
+        contrassegnato_result = await self._process_ai_response(ai_response, session_refreshed, db)
+        
+        # Aggiungi messaggi CONTRASSEGNATO
+        messages.extend(contrassegnato_result["messages"])
+        
+        # Salva risposta CONTRASSEGNATO nella cronologia
+        await self._save_message_to_history(session.id, "assistant", contrassegnato_result["full_message_text"], db)
+        
+        # Gestisci transizione se necessaria
+        if contrassegnato_result["lifecycle_changed"]:
+            session_refreshed = await db.get(SessionModel, session.id)
+        
+        return LifecycleResponse(
+            messages=messages,
+            current_lifecycle=session_refreshed.current_lifecycle,
+            lifecycle_changed=True,
+            previous_lifecycle=previous_lifecycle,
+            next_actions=self._get_next_actions(session_refreshed.current_lifecycle),
+            ai_reasoning=contrassegnato_result["reasoning"],
+            confidence=contrassegnato_result["confidence"],
+            debug_logs=log_capture.get_session_logs(),
+            full_logs=log_capture.get_session_logs_str()
+        )
+
     async def _build_conversation_context(self, session: SessionModel, db: AsyncSession) -> str:
         """Costruisce il contesto della conversazione dalla cronologia"""
         # Ottieni gli ultimi 10 messaggi (5 scambi)
@@ -136,10 +308,20 @@ class UnifiedAgent:
         current_config = LIFECYCLE_SCRIPTS.get(current_lifecycle, {})
         
         # Informazioni sul lifecycle corrente
-        script_text = current_config.get("script", "")
+        script_raw = current_config.get("script", "")
+        if isinstance(script_raw, list):
+            # Se è una lista di snippet, formatta come elenco numerato
+            script_text = "\n".join(f"{i+1}. {snippet}" for i, snippet in enumerate(script_raw))
+        else:
+            # Se è una stringa (come per NUOVA_LEAD), usa direttamente
+            script_text = script_raw
         objective = current_config.get("objective", "")
         transition_indicators = current_config.get("transition_indicators", [])
         next_stage = current_config.get("next_stage")
+        
+        # Ottieni snippet disponibili per questo lifecycle
+        available_snippets = current_config.get("available_snippets", {})
+        snippets_context = self._format_snippets_context(available_snippets)
         
         # Contesto conversazione
         conversation_context = await self._build_conversation_context(session, db)
@@ -150,6 +332,9 @@ OBIETTIVO CORRENTE: {objective}
 
 SCRIPT GUIDA PER QUESTO LIFECYCLE:
 {script_text}
+
+SNIPPET DISPONIBILI PER QUESTA FASE:
+{snippets_context}
 
 CRONOLOGIA CONVERSAZIONE:
 {conversation_context}
@@ -212,7 +397,11 @@ IMPORTANTE:
                 
                 log_capture.add_log("INFO", f"Session loaded: {session_id}")
                 
-                # Genera il prompt unificato
+                # GESTIONE SPECIALE: NUOVA_LEAD
+                if session.current_lifecycle == LifecycleStage.NUOVA_LEAD:
+                    return await self._handle_nuova_lead_special_case(session, user_message, db)
+                
+                # CASO NORMALE: genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
                 log_capture.add_log("INFO", f"SCRIPT GUIDA\n{unified_prompt}")
                 
@@ -225,105 +414,38 @@ IMPORTANTE:
                 log_capture.add_log("INFO", f"Invio messaggio unificato per sessione {session_id}")
                 logger.info(f"Invio messaggio unificato per sessione {session_id}")
                 
-                try:
-                    agent = await self._get_agent()
-                    ai_result = await agent.a_run(unified_prompt)
-                    ai_response = ai_result.text
-                    log_capture.add_log("INFO", "AI response received")
-                    
-                    logger.info(f"Risposta AI ricevuta per sessione {session_id}")
-                except Exception as ai_error:
-                    log_capture.add_log("INFO", "ERROR: AI call failed")
-                    logger.error(f"Errore con l'AI: {ai_error}")
-                    raise AIError(f"Errore nell'elaborazione della richiesta AI: {str(ai_error)}")
+                ai_response = await self._call_ai_agent(unified_prompt)
+                log_capture.add_log("INFO", "AI response received")
+                logger.info(f"Risposta AI ricevuta per sessione {session_id}")
                 
-                # Parsing della risposta JSON
+                # Elabora la risposta AI completa
                 log_capture.add_log("INFO", "Parsing AI response...")
-                try:
-                    # Pulisci la risposta da eventuali markdown
-                    cleaned_response = ai_response.strip()
-                    if cleaned_response.startswith("```json"):
-                        cleaned_response = cleaned_response[7:]
-                    if cleaned_response.endswith("```"):
-                        cleaned_response = cleaned_response[:-3]
-                    cleaned_response = cleaned_response.strip()
-                    
-                    response_data = json.loads(cleaned_response)
-                    log_capture.add_log("INFO", f"```json\n{json.dumps(response_data, indent=2)}\n```")
-                    log_capture.add_log("INFO", "JSON parsed successfully")
-                    
-                    # Estrai i dati dalla risposta
-                    messages = response_data.get("messages") or response_data.get("message", "Ciao! Come posso aiutarti oggi?")
-                    should_change = response_data.get("should_change_lifecycle", False)
-                    new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
-                    reasoning = response_data.get("reasoning", "Risposta automatica")
-                    confidence = response_data.get("confidence", 0.5)
-                    
-                    # Normalizza messages: se è stringa, converti in lista con un elemento
-                    if isinstance(messages, str):
-                        messages = [{"text": messages, "delay_ms": 0}]
-                    elif isinstance(messages, list):
-                        # Assicurati che ogni elemento abbia text e delay_ms
-                        normalized_messages = []
-                        for msg in messages:
-                            if isinstance(msg, dict):
-                                normalized_messages.append({
-                                    "text": msg.get("text", ""),
-                                    "delay_ms": msg.get("delay_ms", 1000)
-                                })
-                            else:
-                                normalized_messages.append({"text": str(msg), "delay_ms": 1000})
-                        messages = normalized_messages
-                    
-                    # Per la cronologia, usa il testo completo concatenato
-                    full_message_text = " ".join([msg["text"] for msg in messages])
-                    
-                    log_capture.add_log("INFO", f"Decision: change={should_change}, confidence={confidence}, messages={len(messages)}")
-                    
-                    # Determina il nuovo lifecycle
-                    lifecycle_changed = False
-                    new_lifecycle = session.current_lifecycle
-                    
-                    if should_change and confidence >= 0.7:
-                        try:
-                            # Normalizza il lifecycle name a lowercase per gestire case sensitivity
-                            normalized_lifecycle_str = new_lifecycle_str.lower()
-                            new_lifecycle = LifecycleStage(normalized_lifecycle_str)
-                            if new_lifecycle != session.current_lifecycle:
-                                await self._update_session_lifecycle(session, new_lifecycle, db)
-                                lifecycle_changed = True
-                                log_capture.add_log("INFO", f"Lifecycle changed: {previous_lifecycle.value} → {new_lifecycle.value}")
-                                logger.info(f"Sessione {session_id}: {previous_lifecycle.value} → {new_lifecycle.value}")
-                        except ValueError:
-                            log_capture.add_log("INFO", f"WARNING: Invalid lifecycle {new_lifecycle_str}")
-                            logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
-                    
-                    # Aggiungi il messaggio alla cronologia
-                    await self._add_to_conversation_history(session, user_message, full_message_text, db)
-                    log_capture.add_log("INFO", "Conversation history updated")
-                    
-                    # Genera next actions
-                    next_actions = self._get_next_actions(new_lifecycle)
-                    
-                    log_capture.add_log("INFO", "Response ready")
-                    
-                    return LifecycleResponse(
-                        messages=messages,
-                        current_lifecycle=new_lifecycle,
-                        lifecycle_changed=lifecycle_changed,
-                        previous_lifecycle=previous_lifecycle if lifecycle_changed else None,
-                        next_actions=next_actions,
-                        ai_reasoning=reasoning,
-                        confidence=confidence,
-                        debug_logs=log_capture.get_session_logs(),
-                        full_logs=log_capture.get_session_logs_str()
-                    )
-                    
-                except json.JSONDecodeError as json_error:
-                    log_capture.add_log("INFO", "ERROR: JSON parsing failed")
-                    logger.error(f"Errore nel parsing JSON: {json_error}")
-                    logger.error(f"Risposta AI: {ai_response}")
-                    raise ParsingError(f"Errore nel parsing della risposta AI: {str(json_error)}")
+                result = await self._process_ai_response(ai_response, session, db)
+                
+                log_capture.add_log("INFO", f"Decision: change={result['should_change']}, confidence={result['confidence']}, messages={len(result['messages'])}")
+                log_capture.add_log("INFO", f"```json\n{json.dumps(result, indent=2)}\n```")
+                log_capture.add_log("INFO", "JSON parsed successfully")
+                
+                # Aggiungi il messaggio alla cronologia
+                await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
+                log_capture.add_log("INFO", "Conversation history updated")
+                
+                # Genera next actions
+                next_actions = self._get_next_actions(session.current_lifecycle)
+                
+                log_capture.add_log("INFO", "Response ready")
+                
+                return LifecycleResponse(
+                    messages=result["messages"],
+                    current_lifecycle=session.current_lifecycle,
+                    lifecycle_changed=result["lifecycle_changed"],
+                    previous_lifecycle=previous_lifecycle if result["lifecycle_changed"] else None,
+                    next_actions=next_actions,
+                    ai_reasoning=result["reasoning"],
+                    confidence=result["confidence"],
+                    debug_logs=log_capture.get_session_logs(),
+                    full_logs=log_capture.get_session_logs_str()
+                )
                     
             except Exception as e:
                 log_capture.add_log("INFO", "ERROR: General error")
@@ -337,14 +459,13 @@ IMPORTANTE:
 
     async def _add_to_conversation_history(self, session: SessionModel, user_message: str, ai_response: str, db: AsyncSession) -> None:
         """Aggiunge i messaggi alla cronologia della conversazione"""
-        from datetime import datetime
         
         # Aggiungi messaggio utente
         user_msg = MessageModel(
             session_id=session.id,
             role="user",
             message=user_message,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         db.add(user_msg)
         
@@ -353,7 +474,7 @@ IMPORTANTE:
             session_id=session.id,
             role="assistant",
             message=ai_response,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         db.add(ai_msg)
         
