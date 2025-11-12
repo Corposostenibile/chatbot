@@ -73,11 +73,10 @@ class UnifiedAgent:
         if self.agent is None:
             # Carica il prompt attivo dal database
             system_prompt = await SystemPromptService.get_active_prompt()
-            if not system_prompt:
-                # Fallback al prompt di default se non trovato
-                from app.data.lifecycle_config import SYSTEM_PROMPT
-                system_prompt = SYSTEM_PROMPT
-                logger.warning("Nessun prompt attivo trovato, uso fallback")
+            logger.info("Caricato prompt di sistema attivo dal database")
+            logger.info("===============================================")
+            logger.info(f"{system_prompt}")
+            logger.info("===============================================")
             
             # Inizializza l'agente con il prompt caricato
             self.agent = Agent(

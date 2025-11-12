@@ -147,6 +147,12 @@
                             <div id="status">Pronto</div>
                         </div>
                     </div>
+                    <div class="sidebar-section">
+                        <h6><i class="fa-solid fa-microchip"></i> System Prompt</h6>
+                        <div id="systemPromptPreview" style="background: #f5f5f5; border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; font-size: 12px; line-height: 1.4; border-left: 4px solid var(--primary-color);">
+                            <p style="margin: 0; color: #666; font-style: italic;">Caricamento...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Chat -->
@@ -194,6 +200,31 @@
             sessionIdInput.value = defaultSessionId;
             updateSessionId(defaultSessionId);
             renderLogs(`[${getTimestamp()}] [INFO] - Agent initialized and ready.`);
+            loadSystemPrompt(); // Carica il system prompt attivo
+        }
+
+        function loadSystemPrompt() {
+            fetch('/api/system-prompts')
+                .then(res => res.json())
+                .then(prompts => {
+                    const activePrompt = prompts.find(p => p.is_active);
+                    const previewDiv = document.getElementById('systemPromptPreview');
+                    if (activePrompt) {
+                        const preview = activePrompt.content.substring(0, 300);
+                        previewDiv.innerHTML = `
+                            <div style="margin-bottom: 8px;">
+                                <strong style="color: var(--primary-color);">${activePrompt.name}</strong>
+                                <span style="color: #999; font-size: 11px;"> v${activePrompt.version}</span>
+                            </div>
+                            <p style="margin: 0; color: #333; white-space: pre-wrap; word-break: break-word;">${escapeHtml(preview)}${preview.length < activePrompt.content.length ? '...' : ''}</p>
+                        `;
+                    } else {
+                        previewDiv.innerHTML = '<p style="margin: 0; color: #c00; font-style: italic;">❌ Nessun system prompt attivo</p>';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('systemPromptPreview').innerHTML = `<p style="margin: 0; color: #c00; font-style: italic;">❌ Errore nel caricamento: ${err.message}</p>`;
+                });
         }
 
         function updateSessionId(newId) {

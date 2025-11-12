@@ -750,8 +750,8 @@ db_reset() {
     docker-compose stop chatbot
 
     print_subheader "Reset Database"
-    docker-compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS chatbot;" 2>/dev/null || true
-    docker-compose exec postgres psql -U postgres -c "CREATE DATABASE chatbot;" 2>/dev/null || true
+    docker-compose exec postgres psql -U chatbot -d postgres -c "DROP DATABASE IF EXISTS chatbot;" 2>/dev/null || true
+    docker-compose exec postgres psql -U chatbot -d postgres -c "CREATE DATABASE chatbot OWNER chatbot;" 2>/dev/null || true
 
     print_subheader "Riavvio Servizi"
     docker-compose start chatbot

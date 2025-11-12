@@ -3,7 +3,6 @@ Servizio per la gestione dei system prompts nel database
 """
 from typing import List, Optional
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from app.database import get_db
@@ -140,8 +139,6 @@ class SystemPromptService:
     @staticmethod
     async def initialize_default_prompt() -> None:
         """Inizializza il prompt di default se non esiste"""
-        from app.data.lifecycle_config import SYSTEM_PROMPT
-
         async for db in get_db():
             try:
                 # Verifica se esiste già un prompt attivo
