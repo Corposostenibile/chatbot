@@ -164,17 +164,6 @@ class UnifiedAgent:
             logger.error(f"Errore con l'AI{context}: {ai_error}")
             raise AIError(f"Errore nell'elaborazione della richiesta AI{context}: {str(ai_error)}")
 
-    async def _save_message_to_history(self, session_id: int, role: str, message: str, db: AsyncSession) -> None:
-        """Salva un messaggio nella cronologia"""
-        msg = MessageModel(
-            session_id=session_id,
-            role=role,
-            message=message,
-            timestamp=datetime.now(timezone.utc)
-        )
-        db.add(msg)
-        await db.commit()
-
     async def _handle_lifecycle_transition(self, session: SessionModel, new_lifecycle_str: str, confidence: float, db: AsyncSession) -> bool:
         """Gestisce la transizione del lifecycle se necessario"""
         if confidence < 0.7:
@@ -205,8 +194,10 @@ class UnifiedAgent:
         # Normalizza messaggi
         normalized_messages = self._normalize_messages(messages)
         
-        # Gestisci transizione lifecycle
-        lifecycle_changed = await self._handle_lifecycle_transition(session, new_lifecycle_str, confidence, db)
+        # Gestisci transizione lifecycle solo se richiesta dall'AI
+        lifecycle_changed = False
+        if should_change:
+            lifecycle_changed = await self._handle_lifecycle_transition(session, new_lifecycle_str, confidence, db)
         
         return {
             "messages": normalized_messages,
@@ -217,66 +208,6 @@ class UnifiedAgent:
             "lifecycle_changed": lifecycle_changed,
             "full_message_text": " ".join([msg["text"] for msg in normalized_messages])
         }
-
-    async def _handle_nuova_lead_special_case(self, session: SessionModel, user_message: str, db: AsyncSession) -> LifecycleResponse:
-        """Gestisce il caso speciale di NUOVA_LEAD"""
-        logger.info(f"GESTIONE SPECIALE NUOVA_LEAD per sessione {session.session_id}")
-        log_capture.add_log("INFO", "LIFECYCLE: NUOVA_LEAD - Usando script di default, passando a CONTRASSEGNATO")
-        
-        # Ottieni script NUOVA_LEAD
-        nuova_lead_config = LIFECYCLE_SCRIPTS[LifecycleStage.NUOVA_LEAD]
-        script_text = nuova_lead_config.get("script", "")
-        
-        # Salva messaggi nella cronologia
-        await self._save_message_to_history(session.id, "user", user_message, db)
-        await self._save_message_to_history(session.id, "assistant", script_text, db)
-        
-        # Transizione a CONTRASSEGNATO
-        previous_lifecycle = session.current_lifecycle
-        session.current_lifecycle = LifecycleStage.CONTRASSEGNATO
-        db.add(session)
-        await db.commit()
-        
-        log_capture.add_log("INFO", f"Lifecycle transitioned: {previous_lifecycle.value} → {LifecycleStage.CONTRASSEGNATO.value}")
-        
-        # Prepara messaggi risposta
-        messages = [{"text": script_text.strip(), "delay_ms": 0}]
-        
-        # Genera risposta CONTRASSEGNATO
-        session_refreshed = await db.get(SessionModel, session.id)
-        unified_prompt = await self._get_unified_prompt(session_refreshed, user_message, db)
-        log_capture.add_log("INFO", f"SCRIPT GUIDA (CONTRASSEGNATO)\n{unified_prompt}")
-        
-        logger.info(f"Generando risposta CONTRASSEGNATO per sessione {session.session_id}")
-        
-        # Chiama AI per CONTRASSEGNATO
-        ai_response = await self._call_ai_agent(unified_prompt, " (CONTRASSEGNATO)")
-        log_capture.add_log("INFO", "AI response received (CONTRASSEGNATO)")
-        
-        # Elabora risposta CONTRASSEGNATO
-        contrassegnato_result = await self._process_ai_response(ai_response, session_refreshed, db)
-        
-        # Aggiungi messaggi CONTRASSEGNATO
-        messages.extend(contrassegnato_result["messages"])
-        
-        # Salva risposta CONTRASSEGNATO nella cronologia
-        await self._save_message_to_history(session.id, "assistant", contrassegnato_result["full_message_text"], db)
-        
-        # Gestisci transizione se necessaria
-        if contrassegnato_result["lifecycle_changed"]:
-            session_refreshed = await db.get(SessionModel, session.id)
-        
-        return LifecycleResponse(
-            messages=messages,
-            current_lifecycle=session_refreshed.current_lifecycle,
-            lifecycle_changed=True,
-            previous_lifecycle=previous_lifecycle,
-            next_actions=self._get_next_actions(session_refreshed.current_lifecycle),
-            ai_reasoning=contrassegnato_result["reasoning"],
-            confidence=contrassegnato_result["confidence"],
-            debug_logs=log_capture.get_session_logs(),
-            full_logs=log_capture.get_session_logs_str()
-        )
 
     async def _build_conversation_context(self, session: SessionModel, db: AsyncSession) -> str:
         """Costruisce il contesto della conversazione dalla cronologia"""
@@ -313,9 +244,8 @@ class UnifiedAgent:
             # Se è una lista di snippet, formatta come elenco numerato
             script_text = "\n".join(f"{i+1}. {snippet}" for i, snippet in enumerate(script_raw))
         else:
-            # Se è una stringa (come per NUOVA_LEAD), usa direttamente
+            # Se è una stringa, usa direttamente
             script_text = script_raw
-        objective = current_config.get("objective", "")
         transition_indicators = current_config.get("transition_indicators", [])
         next_stage = current_config.get("next_stage")
         
@@ -328,7 +258,6 @@ class UnifiedAgent:
         
         # Costruisci il prompt unificato
         unified_prompt = f"""LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
-OBIETTIVO CORRENTE: {objective}
 
 SCRIPT GUIDA PER QUESTO LIFECYCLE:
 {script_text}
@@ -357,7 +286,7 @@ Devi rispondere SEMPRE in questo formato JSON:
         {{"text": "Seconda parte", "delay_ms": 2000}}
     ],
     "should_change_lifecycle": true/false,
-    "new_lifecycle": "nome_lifecycle",
+    "new_lifecycle": "{next_stage.value} o null",
     "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
     "confidence": 0.0-1.0
 }}
@@ -397,9 +326,63 @@ IMPORTANTE:
                 
                 log_capture.add_log("INFO", f"Session loaded: {session_id}")
                 
-                # GESTIONE SPECIALE: NUOVA_LEAD
-                if session.current_lifecycle == LifecycleStage.NUOVA_LEAD:
-                    return await self._handle_nuova_lead_special_case(session, user_message, db)
+                # Check if this is the first message
+                result = await db.execute(
+                    select(func.count(MessageModel.id)).where(MessageModel.session_id == session.id)
+                )
+                message_count = result.scalar()
+                
+                if message_count == 0:
+                    # First message: send auto response and then call AI with CONTRASSEGNATO
+                    auto_response = """Ciao! Grazie di avermi scritto! 
+
+Questo è un messaggio automatico che ho scritto personalmente per riuscire a ringraziarti subito della fiducia!🙏
+
+Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti personalmente l'attenzione che meriti."""
+                    
+                    # Update lifecycle to CONTRASSEGNATO
+                    await self._update_session_lifecycle(session, LifecycleStage.CONTRASSEGNATO, db)
+                    
+                    # Add auto response to history
+                    await self._add_to_conversation_history(session, user_message, auto_response, db)
+                    
+                    # Now generate prompt for CONTRASSEGNATO and call AI
+                    session_refreshed = await db.get(SessionModel, session.id)
+                    unified_prompt = await self._get_unified_prompt(session_refreshed, user_message, db)
+                    log_capture.add_log("INFO", f"SCRIPT GUIDA (CONTRASSEGNATO dopo messaggio automatico)\n{unified_prompt}")
+                    
+                    logger.info(f"Generando risposta CONTRASSEGNATO per primo messaggio in sessione {session_id}")
+                    
+                    # Call AI for CONTRASSEGNATO
+                    ai_response = await self._call_ai_agent(unified_prompt)
+                    log_capture.add_log("INFO", "AI response received (CONTRASSEGNATO)")
+                    
+                    # Process AI response
+                    contrassegnato_result = await self._process_ai_response(ai_response, session_refreshed, db)
+                    
+                    # Add AI response to history
+                    await self._add_assistant_response_to_history(session_refreshed, contrassegnato_result["full_message_text"], db)
+                    
+                    # Combine messages: auto response + AI response
+                    combined_messages = [{"text": auto_response.strip(), "delay_ms": 0}]
+                    if isinstance(contrassegnato_result["messages"], list):
+                        combined_messages.extend(contrassegnato_result["messages"])
+                    else:
+                        combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000})
+                    
+                    next_actions = self._get_next_actions(session_refreshed.current_lifecycle)
+                    
+                    return LifecycleResponse(
+                        messages=combined_messages,
+                        current_lifecycle=session_refreshed.current_lifecycle,
+                        lifecycle_changed=True,
+                        previous_lifecycle=previous_lifecycle,
+                        next_actions=next_actions,
+                        ai_reasoning=contrassegnato_result["reasoning"],
+                        confidence=contrassegnato_result["confidence"],
+                        debug_logs=log_capture.get_session_logs(),
+                        full_logs=log_capture.get_session_logs_str()
+                    )
                 
                 # CASO NORMALE: genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
@@ -490,14 +473,23 @@ IMPORTANTE:
         # Mantieni solo gli ultimi 20 messaggi per ottimizzare la memoria (opzionale, ma per pulizia)
         # Potremmo implementare una pulizia periodica
 
+    async def _add_assistant_response_to_history(self, session: SessionModel, ai_response: str, db: AsyncSession) -> None:
+        """Aggiunge solo una risposta assistant alla cronologia (senza nuovo user message)"""
+        
+        # Aggiungi risposta AI
+        ai_msg = MessageModel(
+            session_id=session.id,
+            role="assistant",
+            message=ai_response,
+            timestamp=datetime.now(timezone.utc)
+        )
+        db.add(ai_msg)
+        
+        await db.commit()
+
     def _get_next_actions(self, current_lifecycle: LifecycleStage) -> List[str]:
         """Genera le prossime azioni suggerite basate sul lifecycle corrente"""
         actions_map = {
-            LifecycleStage.NUOVA_LEAD: [
-                "Ascolta attivamente i problemi del cliente",
-                "Fai domande per capire le sue esigenze specifiche",
-                "Mostra empatia e comprensione"
-            ],
             LifecycleStage.CONTRASSEGNATO: [
                 "Approfondisci i problemi identificati",
                 "Valuta il livello di motivazione del cliente",

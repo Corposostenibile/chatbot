@@ -10,31 +10,27 @@ from app.data.snippets import (
 
 
 # Configurazione degli script per ogni lifecycle (senza triggers_to_next)
+# nuova lead serve solo per inizializzare la conversazione
 LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
     LifecycleStage.NUOVA_LEAD: {
         "script": """
-        Ciao! Grazie di avermi scritto! 
-        
-        Questo è un messaggio automatico che ho scritto personalmente per riuscire a ringraziarti subito della fiducia!🙏
-        
-        Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti personalmente l'attenzione che meriti.
         """,
         "next_stage": LifecycleStage.CONTRASSEGNATO,
-        "objective": "Ringraziare e raccogliere informazioni base: nome, obiettivo specifico, tentativi passati, età",
+        "objective": "",
         "transition_indicators": [
-            "Appena l'utente scrive per primo, ad es: Ciao! Ti ho visto su Facebook, volevo maggiori informazioni",
         ],
-        "available_snippets": GENERIC_MESSAGES
+        "available_snippets": ""
     },
     
     LifecycleStage.CONTRASSEGNATO: {
         "script": list(LEVEL_2_SNIPPETS.values()),
         "next_stage": LifecycleStage.IN_TARGET,
-        "objective": "Approfondire le informazioni e confermare interesse",
+        "objective": "Raccogliere le informazioni di base in un unico messaggio, e solo una volta ottenute, chiedere esplicitamente qual è la motivazione principale per cui vuole migliorare",
         "transition_indicators": [
             "Hai tutte le informazioni necessarie (nome, obiettivo, età)",
             "Il cliente ha confermato interesse a proseguire",
             "Il cliente ha fornito dettagli aggiuntivi sul suo obiettivo"
+            "Il cliente ha fornito la motivazione principale per cui vuole migliorare"
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
@@ -54,12 +50,8 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
     LifecycleStage.LINK_DA_INVIARE: {
         "script": list(LEVEL_4_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_INVIATO,
-        "objective": "Spiegare la consulenza e ottenere conferma per l'invio del link",
+        "objective": "Inviare il link di prenotazione e ottenere conferma",
         "transition_indicators": [
-            "Il cliente ha confermato interesse con parole come 'si', 'magari', 'va bene', 'ok'",
-            "Il cliente ha espresso disponibilità temporale ('mattina', 'pomeriggio', 'sera')",
-            "Il cliente ha fatto qualsiasi domanda positiva sul processo",
-            "Il cliente ha mostrato qualsiasi segno di interesse a procedere",
             "PASSA SUBITO A LINK_INVIATO al primo segno positivo - NON CHIEDERE ULTERIORI CONFERME"
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
@@ -68,13 +60,10 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
     LifecycleStage.LINK_INVIATO: {
         "script": list(LEVEL_5_SNIPPETS.values()),
         "next_stage": None,  # Final stage
-        "objective": "Confermare invio del link e offrire supporto finale",
+        "objective": "",
         "transition_indicators": [
-            "Il cliente ha ricevuto il link",
-            "Il cliente ha confermato l'intenzione di prenotare",
-            "Il cliente ha fatto altre domande (rispondi e rimani disponibile)"
         ],
-        "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
+        "available_snippets": ""
     }
 }
 

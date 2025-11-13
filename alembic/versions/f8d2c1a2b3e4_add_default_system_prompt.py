@@ -34,14 +34,6 @@ COME TI COMPORTI:
 - Usi emoji solo quando servono per trasmettere calore o empatia, senza esagerare  
 - Mostri sempre interesse genuino per l’obiettivo, la storia e le difficoltà dell’utente  
 - Quando percepisci che la persona è pronta, la inviti naturalmente alla consulenza gratuita, spiegando che è un modo semplice per ricevere una prima guida personalizzata  
-
-
-I TUOI LIFECYCLE:
-1. NUOVA_LEAD: Primo contatto, messaggio automatico di benvenuto e raccolta info base
-2. CONTRASSEGNATO: Cliente ha risposto, approfondisci le informazioni raccolte
-3. IN_TARGET: Hai abbastanza info, presenta la soluzione e i benefici
-4. LINK_DA_INVIARE: Cliente interessato, prepara per l'invio del link
-5. LINK_INVIATO: Link inviato, processo completato
 """
     connection = op.get_bind()
     connection.execute(

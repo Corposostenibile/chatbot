@@ -8,28 +8,32 @@ LEVEL_2_SNIPPETS = {
     "livello_2": "Bene! :)",
     "a_livello_2_b": """Per poterti aiutare al meglio ti chiedo:
 1) Qual è il risultato che vorresti raggiungere? 
-2) Cosa hai provato in passato? 
-3) Posso chiederti la tua età?""",
-    "a_livello_2_c": "Ps. Posso chiederti il tuo nome per non fare gaffe? 🙏"
+2) Posso chiederti la tua età?
+Ps. Posso chiederti il tuo nome per non fare gaffe? 🙏""",
+
+    "livello_3_a": "Grazie per la condivisione 🙏",
+    "livello_3_b": "Però vorrei capire qual è la tua motivazione, cosa ti spinge a cambiare proprio ora?",
+    "a_livello_3_c": "E la tua età gentilmente 😊🙏"
+
 }
 
 # Snippet per il Lifecycle 3 (IN_TARGET)
 LEVEL_3_SNIPPETS = {
-    "livello_3_a": "Grazie per la condivisione 🙏",
-    "livello_3_b": "Però vorrei capire qual è la tua motivazione, cosa ti spinge a cambiare proprio ora?",
-    "a_livello_3_c": "E la tua età gentilmente 😊🙏"
+
+    "a_livello_4_a_no_disponibilita": "Che ne dici di questo plan... fissiamo una call Gratuita quando hai un attimo libero e vediamo come posso aiutarti",
+    "livello_4_b": "Possiamo discutere i tuoi obiettivi in modo più dettagliato e progettare un piano d'azione per realizzarli! Che ne dici?",
+    "a_livello_5_a": "Perfetto!🔥 Ti invio il link di prenotazione così puoi scegliere tu giorno e orario che ti tornano più comodi. Troverai anche alcune domande per aiutarti al meglio durante la nostra call",
+    "livello_5_b": "Il link di prenotazione ha una durata di 10 minuti prima di scadere, avresti 30 secondi per completarlo adesso? Ci vogliono pochissimi secondi :)"
+
 }
 
 # Snippet per il Lifecycle 4 (LINK_DA_INVIARE)
 LEVEL_4_SNIPPETS = {
-    "a_livello_4_a_no_disponibilita": "Che ne dici di questo plan... fissiamo una call Gratuita quando hai un attimo libero e vediamo come posso aiutarti",
-    "livello_4_b": "Possiamo discutere i tuoi obiettivi in modo più dettagliato e progettare un piano d'azione per realizzarli! Che ne dici?"
+    "link": "[LINK] Ok bene! Se hai problemi o orari che non vanno bene fammi sapere, ok? :)",
 }
 
 # Snippet per il Lifecycle 5 (LINK_INVIATO)
 LEVEL_5_SNIPPETS = {
-    "a_livello_5_a": "Perfetto!🔥 Ti invio il link di prenotazione così puoi scegliere tu giorno e orario che ti tornano più comodi. Troverai anche alcune domande per aiutarti al meglio durante la nostra call",
-    "livello_5_b": "Il link di prenotazione ha una durata di 10 minuti prima di scadere, avresti 30 secondi per completarlo adesso? Ci vogliono pochissimi secondi :)"
 }
 
 # Snippet generici per obiezioni e situazioni specifiche
