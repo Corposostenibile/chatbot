@@ -17,55 +17,21 @@ Le sessioni e le conversazioni sono persistite in un database PostgreSQL per gar
 - `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
 - `app/data/snippets.py`: Gestione snippets conversazionali
 - `app/templates/`: Template HTML per dashboard e interfacce web
-- `scripts/server.sh`: Script di gestione server completo per produzione
 - `scripts/local.sh`: Script per sviluppo locale senza Docker
 - `scripts/ssl.sh`: Script dedicato per configurazione SSL
 - `alembic/`: Migrazioni database (sessions, messages, system_prompts)
 - `context7_mcp_integration.md`: Integrazione MCP per documentazione dinamica
 
 ## Flusso di Sviluppo
-- **Installazione dipendenze**: `./scripts/server.sh dependencies-install` (installa dipendenze Poetry)
-- **Aggiornamento dipendenze**: `./scripts/server.sh dependencies-update` (aggiorna dipendenze Poetry)
-- **Verifica dipendenze**: `./scripts/server.sh dependencies-check` (controlla stato dipendenze)
-- **Avvio server completo**: `./scripts/server.sh server-start` (avvia Nginx + SSL + Docker)
-- **Status server**: `./scripts/server.sh server-status` (mostra status completo)
-- **Monitoraggio health**: `./scripts/server.sh monitor-health` (controlli automatici)
-- **Setup SSL**: `./scripts/server.sh ssl-setup` (configura SSL Let's Encrypt)
-- **Troubleshooting**: `./scripts/server.sh troubleshoot` (diagnosi automatica problemi)
-- **Deploy**: `./scripts/deploy.sh` (Cloud Build → Cloud Run)
-
-## Script server.sh - Gestione Server Completa
-
-Lo script `scripts/server.sh` è lo strumento principale per gestire l'intero stack di produzione:
-
-### 🖥️ Gestione Server
-- `server-start`: Avvia Nginx, chatbot e database
-- `server-stop`: Arresta tutti i servizi
-- `server-restart`: Riavvia tutti i servizi
-- `server-status`: Mostra status completo (container, app, SSL, risorse)
-- `server-logs [nginx|chatbot|postgres|all]`: Visualizza logs dei servizi
-
-### 🔒 Gestione SSL
-- `ssl-setup`: Setup completo SSL Let's Encrypt con rinnovo automatico
-- `ssl-renew`: Rinnova manualmente il certificato SSL
-- `ssl-check`: Verifica validità e scadenza del certificato
-
-### 📦 Gestione Dipendenze
-- `dependencies-install`: Installa dipendenze Poetry
-- `dependencies-update`: Aggiorna dipendenze Poetry
-- `dependencies-check`: Verifica stato dipendenze e ambiente virtuale
-- `dependencies-lock`: Aggiorna poetry.lock
-
-### 📊 Monitoraggio
-- `monitor-health`: Controlli automatici di health (container, app, DB, SSL, disco)
-- `monitor-resources`: Monitoraggio utilizzo risorse container
-
-### 🔧 Troubleshooting
-- `troubleshoot`: Diagnosi automatica problemi comuni (DNS, porte, container, comunicazione)
-
-### ⚙️ Manutenzione
-- `maintenance-update`: Aggiornamento completo sistema e riavvio
-- `maintenance-cleanup`: Pulizia immagini, container e log inutilizzati
+- **Installazione dipendenze**: `./scripts/local.sh local-install` (installa dipendenze Poetry)
+- **Aggiornamento dipendenze**: `./scripts/local.sh dependencies-update` (aggiorna dipendenze Poetry)
+- **Verifica dipendenze**: `./scripts/local.sh dependencies-check` (controlla stato dipendenze)
+- **Avvio ambiente sviluppo**: `./scripts/local.sh local-run` (avvia app in modalità development)
+- **Status ambiente**: `./scripts/local.sh local-status` (mostra stato completo)
+- **Setup iniziale**: `./scripts/local.sh local-setup` (configurazione completa ambiente)
+- **Database locale**: `./scripts/local.sh local-db-start` (avvia PostgreSQL locale)
+- **Testing**: `./scripts/local.sh local-test` (esegue suite di test)
+- **Linting**: `./scripts/local.sh local-lint` (controllo qualità codice)
 
 ## Script local.sh - Sviluppo Locale
 
@@ -170,4 +136,4 @@ CREATE TABLE system_prompts (
   - `/system-prompts`: Gestione prompts
   - `/monitoring`: Dashboard monitoraggio
 
-# IMPORTANTE: Non avviare mai il server, è già attivo!
+# IMPORTANTE: Non avviare mai il server

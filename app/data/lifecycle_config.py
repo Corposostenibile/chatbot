@@ -32,7 +32,7 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         "next_stage": LifecycleStage.IN_TARGET,
         "objective": "Approfondire le informazioni e confermare interesse",
         "transition_indicators": [
-            "Hai tutte le informazioni necessarie (nome, obiettivo, storia passata, età)",
+            "Hai tutte le informazioni necessarie (nome, obiettivo, età)",
             "Il cliente ha confermato interesse a proseguire",
             "Il cliente ha fornito dettagli aggiuntivi sul suo obiettivo"
         ],
