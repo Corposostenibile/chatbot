@@ -60,7 +60,7 @@ def run_migrations_online() -> None:
     """
     # Try to get database URL from environment or config
     import os
-    database_url = os.getenv("DATABASE_URL", "postgresql://chatbot:chatbot_password@postgres:5432/chatbot")
+    database_url = os.getenv("DATABASE_URL", "postgresql://chatbot:chatbot_password@localhost:5432/chatbot")
     
     # Force synchronous driver for Alembic
     if database_url.startswith("postgresql+asyncpg://"):
@@ -68,7 +68,7 @@ def run_migrations_online() -> None:
     elif database_url.startswith("postgresql://"):
         pass  # Already synchronous
     else:
-        database_url = "postgresql://chatbot:chatbot_password@postgres:5432/chatbot"
+        database_url = "postgresql://chatbot:chatbot_password@localhost:5432/chatbot"
 
     connectable = engine_from_config(
         {"sqlalchemy.url": database_url},

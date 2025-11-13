@@ -163,18 +163,7 @@ class SystemPromptService:
                     await db.commit()
                     logger.info("Prompt default esistente attivato")
                     return
-
-                # Crea il prompt di default
-                default_prompt = SystemPromptModel(
-                    name="default",
-                    content=SYSTEM_PROMPT,
-                    version="1.0",
-                    description="Prompt di sistema di default per Corposostenibile",
-                    is_active=True
-                )
-                db.add(default_prompt)
-                await db.commit()
-                logger.info("Prompt di default creato e attivato")
-
+                else:
+                    logger.error("Prompt default non trovato, errore.")
             except Exception as e:
                 logger.error(f"Errore nell'inizializzazione del prompt di default: {e}")

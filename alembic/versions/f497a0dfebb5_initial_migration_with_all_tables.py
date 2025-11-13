@@ -75,3 +75,5 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_sessions_session_id'), table_name='sessions')
     op.drop_index(op.f('ix_sessions_id'), table_name='sessions')
     op.drop_table('sessions')
+    # Drop the enum type
+    op.execute('DROP TYPE IF EXISTS lifecyclestage')

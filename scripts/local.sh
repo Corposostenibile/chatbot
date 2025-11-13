@@ -436,6 +436,82 @@ stop_db() {
     log "Container PostgreSQL arrestato ✓"
 }
 
+# Reset database
+reset_db() {
+    log "Reset database locale..."
+
+    source "$VENV_PATH/bin/activate"
+
+    # Load environment variables
+    if [[ -f "$PROJECT_ROOT/.env.local" ]]; then
+        set -a
+        source "$PROJECT_ROOT/.env.local"
+        set +a
+    fi
+
+    cd "$PROJECT_ROOT"
+
+    # Check database type and reset accordingly
+    if [[ "$DATABASE_URL" == *"sqlite"* ]]; then
+        log "Reset SQLite database"
+        DB_PATH_LOCAL=$(echo "$DATABASE_URL" | sed 's|sqlite:///||')
+        if [[ -f "$DB_PATH_LOCAL" ]]; then
+            rm -f "$DB_PATH_LOCAL"
+            log "Database SQLite rimosso"
+        fi
+    elif [[ "$DATABASE_URL" == *"postgresql"* ]]; then
+        log "Reset PostgreSQL database"
+        # Manually drop all tables, enums, and reset alembic
+        python3 -c "
+import psycopg2
+import os
+
+# Connect to database
+conn = psycopg2.connect(os.environ['DATABASE_URL'].replace('postgresql+asyncpg://', 'postgresql://'))
+conn.autocommit = True
+cur = conn.cursor()
+
+try:
+    # Drop enum if exists
+    cur.execute('DROP TYPE IF EXISTS lifecyclestage CASCADE')
+    print('✅ Enum lifecyclestage dropped')
+    
+    # Get all tables
+    cur.execute(\"\"\"
+        SELECT tablename FROM pg_tables 
+        WHERE schemaname = 'public'
+    \"\"\")
+    tables = [row[0] for row in cur.fetchall()]
+    
+    # Drop all tables
+    for table in tables:
+        cur.execute(f'DROP TABLE IF EXISTS \"{table}\" CASCADE')
+        print(f'✅ Table {table} dropped')
+    
+    # Reset alembic version
+    cur.execute('DROP TABLE IF EXISTS alembic_version')
+    print('✅ Alembic version table dropped')
+    
+except Exception as e:
+    print(f'❌ Error during reset: {e}')
+
+cur.close()
+conn.close()
+" 2>/dev/null || error "Errore reset database PostgreSQL"
+    else
+        warn "Tipo database non riconosciuto, saltando reset"
+    fi
+
+    # Run migrations from scratch
+    if [[ -f "alembic.ini" ]]; then
+        log "Applicando migrazioni dall'inizio..."
+        alembic upgrade head
+        log "Migrazioni applicate ✓"
+    fi
+
+    log "Database resettato ✓"
+}
+
 # Show status
 show_status() {
     echo "=== Status Sviluppo Locale ==="
@@ -507,6 +583,7 @@ show_status() {
     echo "local-db-init    - Inizializza database locale"
     echo "local-db-start   - Avvia container PostgreSQL"
     echo "local-db-stop    - Ferma container PostgreSQL"
+    echo "local-db-reset   - Resetta database locale"
     echo "local-run        - Avvia applicazione"
     echo "local-test       - Esegue test"
     echo "local-lint       - Esegue linting"
@@ -568,6 +645,10 @@ main() {
             check_project_root
             stop_db
             ;;
+        "db-reset"|"local-db-reset")
+            check_project_root
+            reset_db
+            ;;
         "run"|"local-run")
             check_project_root
             run_app
@@ -599,6 +680,7 @@ main() {
             echo "  local-db-init    - Inizializza database locale"
             echo "  local-db-start   - Avvia container PostgreSQL"
             echo "  local-db-stop    - Ferma container PostgreSQL"
+            echo "  local-db-reset   - Resetta database locale"
             echo "  local-run        - Avvia applicazione"
             echo "  local-test       - Esegue test"
             echo "  local-lint       - Esegue linting"
