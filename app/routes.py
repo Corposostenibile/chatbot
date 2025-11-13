@@ -116,6 +116,7 @@ async def sessions_dashboard(request: Request):
                 SessionModel.session_id,
                 SessionModel.current_lifecycle,
                 SessionModel.user_info,
+                SessionModel.is_conversation_finished,
                 SessionModel.created_at,
                 SessionModel.updated_at,
                 func.count(MessageModel.id).label('message_count')
@@ -126,6 +127,7 @@ async def sessions_dashboard(request: Request):
                 SessionModel.session_id,
                 SessionModel.current_lifecycle,
                 SessionModel.user_info,
+                SessionModel.is_conversation_finished,
                 SessionModel.created_at,
                 SessionModel.updated_at
             ).order_by(SessionModel.updated_at.desc())
@@ -141,6 +143,7 @@ async def sessions_dashboard(request: Request):
                 'session_id': row.session_id,
                 'current_lifecycle': row.current_lifecycle,
                 'user_info': row.user_info,
+                'is_conversation_finished': row.is_conversation_finished,
                 'created_at': row.created_at,
                 'updated_at': row.updated_at,
                 'message_count': row.message_count
@@ -204,6 +207,7 @@ async def session_conversation(session_id: str, request: Request):
             'session_id': session_data.session_id,
             'current_lifecycle': session_data.current_lifecycle,
             'user_info': session_data.user_info,
+            'is_conversation_finished': session_data.is_conversation_finished,
             'created_at': session_data.created_at,
             'updated_at': session_data.updated_at,
             'message_count': len(messages)
@@ -253,6 +257,21 @@ async def chat_endpoint(chat_message: ChatMessage):
         from app.main import logger
 
         logger.info(f"Messaggio ricevuto da sessione {chat_message.session_id}: {chat_message.message}")
+
+        # Verifica se la conversazione è finita
+        async for db in get_db():
+            from sqlalchemy import select
+            result = await db.execute(
+                select(SessionModel).where(SessionModel.session_id == chat_message.session_id)
+            )
+            session = result.scalar_one_or_none()
+
+            if session and session.is_conversation_finished:
+                logger.warning(f"Tentativo di invio messaggio a conversazione finita per sessione {chat_message.session_id}")
+                raise HTTPException(
+                    status_code=403,
+                    detail="Conversazione terminata. Non è più possibile inviare messaggi."
+                )
 
         # Usa l'agente unificato
         lifecycle_response = await unified_agent.chat(

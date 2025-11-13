@@ -455,6 +455,13 @@ IMPORTANTE:
     async def _update_session_lifecycle(self, session: SessionModel, new_lifecycle: LifecycleStage, db: AsyncSession) -> None:
         """Aggiorna il lifecycle della sessione"""
         session.current_lifecycle = new_lifecycle
+
+        # Imposta il flag di conversazione finita se si passa a LINK_INVIATO
+        from app.models.lifecycle import LifecycleStage as LS
+        if new_lifecycle == LS.LINK_INVIATO:
+            session.is_conversation_finished = True
+            logger.info(f"Conversazione finita impostata per sessione {session.session_id}")
+
         await db.commit()
 
     async def _add_to_conversation_history(self, session: SessionModel, user_message: str, ai_response: str, db: AsyncSession) -> None:
@@ -524,17 +531,18 @@ IMPORTANTE:
             session = result.scalar_one_or_none()
             if not session:
                 return None
-            
+
             # Conta i messaggi
             result = await db.execute(
                 select(func.count(MessageModel.id)).where(MessageModel.session_id == session.id)
             )
             message_count = result.scalar()
-            
+
             return {
                 "session_id": session.session_id,
                 "current_lifecycle": session.current_lifecycle.value,
                 "conversation_length": message_count,
+                "is_conversation_finished": session.is_conversation_finished,
                 "created_at": session.created_at.isoformat(),
                 "updated_at": session.updated_at.isoformat()
             }

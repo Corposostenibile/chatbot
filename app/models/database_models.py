@@ -16,6 +16,7 @@ class SessionModel(Base):
     session_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     current_lifecycle: Mapped[LifecycleStage] = mapped_column(SQLEnum(LifecycleStage), default=LifecycleStage.NUOVA_LEAD)
     user_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
+    is_conversation_finished: Mapped[bool] = mapped_column(default=False)  # Flag per conversazione finita
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
