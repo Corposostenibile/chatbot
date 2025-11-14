@@ -25,12 +25,11 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
     LifecycleStage.CONTRASSEGNATO: {
         "script": list(LEVEL_2_SNIPPETS.values()),
         "next_stage": LifecycleStage.IN_TARGET,
-        "objective": "Raccogliere le informazioni di base in un unico messaggio (NON SPEZZETTARE), e solo una volta ottenute, chiedere esplicitamente qual è la motivazione principale per cui vuole migliorare (SPEZZETTARE qui esattamente come da script)",
+        "objective": "Raccogliere le informazioni di base in un unico messaggio (NON SPEZZETTARE), e solo una volta ottenute, chiedere esplicitamente qual è la motivazione principale per cui vuole migliorare (SPEZZETTARE qui esattamente come da script), passare al prossimo lifecycle appena chiesta la motivazione.",
         "transition_indicators": [
             "Hai tutte le informazioni necessarie (nome, obiettivo, età)",
             "Il cliente ha confermato interesse a proseguire",
             "Il cliente ha fornito dettagli aggiuntivi sul suo obiettivo"
-            "Il cliente ha fornito la motivazione principale per cui vuole migliorare, dopo che gliel'hai chiesto una sola volta"
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
@@ -40,9 +39,6 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         "next_stage": LifecycleStage.LINK_DA_INVIARE,
         "objective": "Presentare i benefici del percorso integrato e introdurre la consulenza gratuita",
         "transition_indicators": [
-            "Il cliente ha mostrato interesse per la consulenza gratuita",
-            "Il cliente ha fatto domande sui servizi",
-            "Il cliente ha confermato di voler saperne di più"
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
