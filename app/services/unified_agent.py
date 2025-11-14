@@ -246,6 +246,7 @@ class UnifiedAgent:
         else:
             # Se è una stringa, usa direttamente
             script_text = script_raw
+        objective = current_config.get("objective", "")
         transition_indicators = current_config.get("transition_indicators", [])
         next_stage = current_config.get("next_stage")
         
@@ -256,8 +257,21 @@ class UnifiedAgent:
         # Contesto conversazione
         conversation_context = await self._build_conversation_context(session, db)
         
+        # Istruzioni specifiche per lifecycle
+        specific_instructions = [
+            "1. Usa il script come guida ma mantieni la conversazione fluida",
+            "2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle",
+            "3. Se decidi di spezzettare, specifica i delay tra i messaggi"
+        ]
+        
+        # Aggiungi istruzioni specifiche per CONTRASSEGNATO
+        if current_lifecycle == LifecycleStage.CONTRASSEGNATO:
+            specific_instructions.insert(0, "IMPORTANTE: NON SPEZZETTARE - Raccogli tutte le informazioni di base (nome, obiettivo, età) in UN UNICO messaggio senza delay.")
+        
         # Costruisci il prompt unificato
         unified_prompt = f"""LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
+
+OBIETTIVO LIFECYCLE: {objective}
 
 SCRIPT GUIDA PER QUESTO LIFECYCLE:
 {script_text}
@@ -281,7 +295,9 @@ INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage el
 FORMATO RISPOSTA RICHIESTO:
 Devi rispondere SEMPRE in questo formato JSON:
 {{
-    "messages": "La tua risposta completa" OPPURE [
+    "messages": "La tua risposta completa" 
+    OPPURE 
+    "messages": [
         {{"text": "Prima parte del messaggio", "delay_ms": 1000}},
         {{"text": "Seconda parte", "delay_ms": 2000}}
     ],
@@ -298,6 +314,7 @@ IMPORTANTE:
 - La risposta deve essere SEMPRE un JSON valido
 """
 
+        logger.info(f"Generated unified prompt for session {session.session_id}:\n{unified_prompt}")
         return unified_prompt
 
     async def chat(self, session_id: str, user_message: str) -> LifecycleResponse:
