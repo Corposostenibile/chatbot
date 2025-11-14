@@ -15,6 +15,7 @@ from sqlalchemy import func, select
 from app.config import get_settings
 from app.models.database_models import SessionModel, MessageModel, SystemPromptModel
 from app.services.system_prompt_service import SystemPromptService
+from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
 from app.database import get_db
 import subprocess
@@ -248,6 +249,28 @@ async def health_check():
     )
 
 
+@router.get("/api/models")
+async def get_available_models():
+    """Ottiene la lista dei modelli AI disponibili"""
+    try:
+        models = await AIModelService.get_all_models()
+        return {
+            "models": [
+                {
+                    "name": m.name,
+                    "display_name": m.display_name or m.name,
+                    "is_active": m.is_active,
+                    "description": m.description
+                }
+                for m in models
+            ]
+        }
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero dei modelli: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(chat_message: ChatMessage):
     """
@@ -276,7 +299,8 @@ async def chat_endpoint(chat_message: ChatMessage):
         # Usa l'agente unificato
         lifecycle_response = await unified_agent.chat(
             session_id=chat_message.session_id,
-            user_message=chat_message.message
+            user_message=chat_message.message,
+            model_name=chat_message.model_name
         )
 
         # Estrai il testo per il logging

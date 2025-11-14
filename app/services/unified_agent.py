@@ -68,25 +68,43 @@ class UnifiedAgent:
             logger.error(f"Errore nell'inizializzazione di UnifiedAgent: {e}")
             raise
 
-    async def _get_agent(self) -> Agent:
-        """Ottiene l'agente con il prompt di sistema attivo"""
-        if self.agent is None:
-            # Carica il prompt attivo dal database
-            system_prompt = await SystemPromptService.get_active_prompt()
-            logger.info("Caricato prompt di sistema attivo dal database")
-            logger.info("===============================================")
-            logger.info(f"{system_prompt}")
-            logger.info("===============================================")
-            
-            # Inizializza l'agente con il prompt caricato
-            self.agent = Agent(
-                client=self.client,
-                name="Corposostenibile Unified Agent",
-                system_prompt=system_prompt,
-            )
-            logger.info("Agente inizializzato con prompt dal database")
+    async def _get_agent(self, model_name: str = None) -> Agent:
+        """Ottiene l'agente con il prompt di sistema attivo e il modello specificato
         
-        return self.agent
+        Args:
+            model_name: Nome del modello da utilizzare (opzionale, usa il default se non specificato)
+        """
+        # Determina il modello da usare
+        if not model_name:
+            # Se non specificato, usa il modello attivo dal database
+            from app.services.ai_model_service import AIModelService
+            active_model = await AIModelService.get_active_model()
+            model_name = active_model.name if active_model else "gemini-flash-latest"
+        
+        logger.info(f"Utilizzo del modello: {model_name}")
+        
+        # Carica il prompt attivo dal database
+        system_prompt = await SystemPromptService.get_active_prompt()
+        logger.info("Caricato prompt di sistema attivo dal database")
+        logger.info("===============================================")
+        logger.info(f"{system_prompt}")
+        logger.info("===============================================")
+        
+        # Crea un nuovo client con il modello specificato
+        client = GoogleClient(
+            api_key=settings.google_ai_api_key,
+            model=model_name,
+        )
+        
+        # Inizializza l'agente con il prompt caricato
+        agent = Agent(
+            client=client,
+            name="Corposostenibile Unified Agent",
+            system_prompt=system_prompt,
+        )
+        logger.info(f"Agente inizializzato con prompt dal database e modello {model_name}")
+        
+        return agent
 
     async def get_or_create_session(self, session_id: str, db: AsyncSession) -> SessionModel:
         # Cerca la sessione esistente
@@ -154,10 +172,16 @@ class UnifiedAgent:
         else:
             return [{"text": str(messages), "delay_ms": 0}]
 
-    async def _call_ai_agent(self, prompt: str, context: str = "") -> str:
-        """Chiama l'agente AI e gestisce gli errori"""
+    async def _call_ai_agent(self, prompt: str, model_name: str = None, context: str = "") -> str:
+        """Chiama l'agente AI e gestisce gli errori
+        
+        Args:
+            prompt: Il prompt da inviare all'AI
+            model_name: Nome del modello da utilizzare (opzionale)
+            context: Contesto aggiuntivo per il logging
+        """
         try:
-            agent = await self._get_agent()
+            agent = await self._get_agent(model_name=model_name)
             ai_result = await agent.a_run(prompt)
             return ai_result.text
         except Exception as ai_error:
@@ -317,13 +341,14 @@ IMPORTANTE:
         logger.info(f"Generated unified prompt for session {session.session_id}:\n{unified_prompt}")
         return unified_prompt
 
-    async def chat(self, session_id: str, user_message: str) -> LifecycleResponse:
+    async def chat(self, session_id: str, user_message: str, model_name: str = None) -> LifecycleResponse:
         """
         Gestisce una conversazione completa con decisione automatica del lifecycle
         
         Args:
             session_id: ID della sessione di chat
             user_message: Messaggio dell'utente
+            model_name: Nome del modello AI da utilizzare (opzionale)
             
         Returns:
             LifecycleResponse con la risposta e informazioni sul lifecycle
@@ -371,7 +396,7 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     logger.info(f"Generando risposta CONTRASSEGNATO per primo messaggio in sessione {session_id}")
                     
                     # Call AI for CONTRASSEGNATO
-                    ai_response = await self._call_ai_agent(unified_prompt)
+                    ai_response = await self._call_ai_agent(unified_prompt, model_name=model_name)
                     log_capture.add_log("INFO", "AI response received (CONTRASSEGNATO)")
                     
                     # Process AI response
@@ -414,7 +439,7 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 log_capture.add_log("INFO", f"Invio messaggio unificato per sessione {session_id}")
                 logger.info(f"Invio messaggio unificato per sessione {session_id}")
                 
-                ai_response = await self._call_ai_agent(unified_prompt)
+                ai_response = await self._call_ai_agent(unified_prompt, model_name=model_name)
                 log_capture.add_log("INFO", "AI response received")
                 logger.info(f"Risposta AI ricevuta per sessione {session_id}")
                 

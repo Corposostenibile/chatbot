@@ -33,3 +33,8 @@ async def get_db() -> AsyncSession:
             yield session
         finally:
             await session.close()
+
+
+async def get_db_session() -> AsyncSession:
+    """Helper per ottenere una sessione del database per operazioni standalone"""
+    return async_session()

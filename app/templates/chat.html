@@ -138,6 +138,12 @@
                                 <label for="sessionId">Session ID:</label>
                                 <input type="text" id="sessionId" class="form-control" placeholder="es. test-session-001" required>
                             </div>
+                            <div class="form-group">
+                                <label for="modelSelect">Modello AI:</label>
+                                <select id="modelSelect" class="form-control">
+                                    <option value="">Caricamento modelli...</option>
+                                </select>
+                            </div>
                         </form>
                     </div>
                     <div class="sidebar-section">
@@ -182,6 +188,7 @@
         // ... [Variabili e funzioni di inizializzazione rimangono invariate] ...
         let currentSessionId = null;
         const sessionIdInput = document.getElementById('sessionId');
+        const modelSelect = document.getElementById('modelSelect');
         const messageInput = document.getElementById('message');
         const sendBtn = document.getElementById('sendBtn');
         const chatMessages = document.getElementById('chatMessages');
@@ -189,11 +196,37 @@
         const sessionDisplay = document.getElementById('sessionDisplay');
         const debugLogsDiv = document.getElementById('debugLogs');
 
+        async function loadAvailableModels() {
+            try {
+                const response = await fetch('/api/models');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.json();
+                modelSelect.innerHTML = '<option value="">Modello attivo (default)</option>';
+                
+                if (data.models && data.models.length > 0) {
+                    data.models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model.name;
+                        option.textContent = model.display_name + (model.is_active ? ' (attivo)' : '');
+                        option.title = model.description || '';
+                        modelSelect.appendChild(option);
+                    });
+                } else {
+                    console.warn('Nessun modello disponibile');
+                }
+            } catch (error) {
+                console.error('Errore nel caricamento dei modelli:', error);
+                modelSelect.innerHTML = '<option value="">Errore caricamento modelli</option>';
+            }
+        }
+
         function initialize() {
             const defaultSessionId = `session-${Date.now()}`;
             sessionIdInput.value = defaultSessionId;
             updateSessionId(defaultSessionId);
             renderLogs(`[${getTimestamp()}] [INFO] - Agent initialized and ready.`);
+            loadAvailableModels();
         }
 
         function updateSessionId(newId) {
@@ -213,6 +246,7 @@
 
         async function sendMessage() {
             const message = messageInput.value.trim();
+            const selectedModel = modelSelect.value || '';
             if (!message || !currentSessionId) {
                 alert('Inserisci un messaggio e una Session ID valida.');
                 return;
@@ -230,7 +264,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         session_id: currentSessionId,
-                        message: message
+                        message: message,
+                        model_name: selectedModel
                     })
                 });
 

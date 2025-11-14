@@ -10,6 +10,7 @@ class ChatMessage(BaseModel):
     message: str
     user_id: str = "anonymous"
     session_id: Optional[str] = "default"
+    model_name: Optional[str] = None  # Nome del modello AI selezionato
     context: Optional[Dict[str, Any]] = None
 
 

@@ -48,3 +48,15 @@ class SystemPromptModel(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Descrizione del prompt
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class AIModelModel(Base):
+    __tablename__ = "ai_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, unique=True, index=True)  # Nome del modello (es. gemini-flash-latest)
+    display_name: Mapped[str] = mapped_column(String)  # Nome visualizzato nell'UI
+    is_active: Mapped[bool] = mapped_column(default=False)  # Se è il modello attivo
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Descrizione del modello
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
