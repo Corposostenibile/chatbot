@@ -200,8 +200,18 @@ EOF
 
     # Run database migrations
     if [[ -f "alembic.ini" ]]; then
-        alembic upgrade head
-        log "Migrazioni database applicate ✓"
+        # Try deterministic upgrade to head; if there are multiple heads, try 'heads'
+        if alembic upgrade head; then
+            log "Migrazioni database applicate ✓"
+        else
+            warn "alembic upgrade head fallito; provando a eseguire 'alembic upgrade heads' per applicare tutte le heads"
+            if alembic upgrade heads; then
+                log "Migrazioni database applicate con 'heads' ✓"
+            else
+                error "alembic upgrade heads fallito. Controlla le revisions presenti in 'alembic/versions'"
+                exit 1
+            fi
+        fi
     else
         warn "alembic.ini non trovato, saltando migrazioni"
     fi

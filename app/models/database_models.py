@@ -60,3 +60,21 @@ class AIModelModel(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Descrizione del modello
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class HumanTaskModel(Base):
+    __tablename__ = "human_tasks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sessions.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String)  # breve descrizione
+    description: Mapped[str] = mapped_column(Text)  # dettagli della task
+    status: Mapped[str] = mapped_column(String, default="open")  # open|in_progress|closed
+    assigned_to: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    metadata_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string con dettagli vari
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Relationship
+    session: Mapped[Optional["SessionModel"]] = relationship("SessionModel")

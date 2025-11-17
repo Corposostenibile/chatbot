@@ -28,6 +28,8 @@ class ChatResponse(BaseModel):
     full_logs: Optional[str] = None
     timestamp: str
     is_conversation_finished: bool = False
+    requires_human: bool = False
+    human_task: Optional[Dict[str, Any]] = None
 
 
 class HealthCheck(BaseModel):
@@ -51,3 +53,12 @@ class SystemPromptUpdate(BaseModel):
     content: Optional[str] = None
     version: Optional[str] = None
     description: Optional[str] = None
+
+
+class HumanTaskCreate(BaseModel):
+    """Modello per creare una human task via API"""
+    title: str
+    description: str
+    session_id: Optional[str] = None
+    assigned_to: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None

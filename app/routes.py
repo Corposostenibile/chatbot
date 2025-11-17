@@ -17,11 +17,14 @@ from app.models.database_models import SessionModel, MessageModel, SystemPromptM
 from app.services.system_prompt_service import SystemPromptService
 from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
+from app.models.api_models import HumanTaskCreate
 from app.database import get_db
+import json as json_lib
 import subprocess
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
+from app.models.database_models import HumanTaskModel
 from app.models.lifecycle import LifecycleStage
 
 # Crea il router
@@ -336,6 +339,8 @@ async def chat_endpoint(chat_message: ChatMessage):
             full_logs=lifecycle_response.full_logs,
             timestamp=str(int(time.time())),
             is_conversation_finished=lifecycle_response.is_conversation_finished
+            ,requires_human=lifecycle_response.requires_human
+            ,human_task=lifecycle_response.human_task
         )
 
     except AIError as e:
@@ -441,6 +446,107 @@ async def finish_session(session_id: str, set_lifecycle: bool = True):
         from app.main import logger
         logger.error(f"Errore nel marcare la sessione come finita: {e}")
         raise HTTPException(status_code=500, detail=f"Errore interno del server: {str(e)}")
+
+
+@router.post("/api/tasks")
+async def create_human_task(task: HumanTaskCreate):
+    """Crea una nuova human task manualmente"""
+    try:
+        async for db in get_db():
+            # Cerca la sessione associata se presente
+            session_id = None
+            if task.session_id:
+                result = await db.execute(select(SessionModel).where(SessionModel.session_id == task.session_id))
+                session = result.scalar_one_or_none()
+                if session:
+                    session_id = session.id
+
+            new_task = HumanTaskModel(
+                session_id=session_id,
+                title=task.title,
+                description=task.description,
+                assigned_to=task.assigned_to,
+                metadata_json=json_lib.dumps(task.metadata) if task.metadata else None,
+                created_by="manual"
+            )
+            db.add(new_task)
+            await db.commit()
+            await db.refresh(new_task)
+
+            return {
+                "id": new_task.id,
+                "session_id": task.session_id,
+                "title": new_task.title,
+                "description": new_task.description,
+                "assigned_to": new_task.assigned_to,
+                "status": new_task.status
+            }
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nella creazione della human task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/tasks")
+async def list_human_tasks(session_id: str = None):
+    """Lista delle human tasks, opzionalmente filtrata per session"""
+    try:
+        async for db in get_db():
+            stmt = select(HumanTaskModel)
+            if session_id:
+                # Recup session id numeric
+                s = await db.execute(select(SessionModel).where(SessionModel.session_id == session_id))
+                s_obj = s.scalar_one_or_none()
+                if s_obj:
+                    stmt = stmt.where(HumanTaskModel.session_id == s_obj.id)
+
+            result = await db.execute(stmt.order_by(HumanTaskModel.created_at.desc()))
+            tasks = result.scalars().all()
+
+            out = []
+            for t in tasks:
+                out.append({
+                    "id": t.id,
+                    "session_id": t.session_id,
+                    "title": t.title,
+                    "description": t.description,
+                    "assigned_to": t.assigned_to,
+                    "status": t.status,
+                    "created_at": t.created_at.isoformat()
+                })
+            return out
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero delle human tasks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/tasks/{task_id}")
+async def get_human_task(task_id: int):
+    try:
+        async for db in get_db():
+            result = await db.execute(select(HumanTaskModel).where(HumanTaskModel.id == task_id))
+            t = result.scalar_one_or_none()
+            if not t:
+                raise HTTPException(status_code=404, detail="Task non trovata")
+
+            return {
+                "id": t.id,
+                "session_id": t.session_id,
+                "title": t.title,
+                "description": t.description,
+                "assigned_to": t.assigned_to,
+                "status": t.status,
+                "metadata": json_lib.loads(t.metadata_json) if t.metadata_json else None,
+                "created_at": t.created_at.isoformat(),
+                "updated_at": t.updated_at.isoformat()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero della human task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/unified/health")

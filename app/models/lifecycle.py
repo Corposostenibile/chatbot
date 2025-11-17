@@ -58,4 +58,6 @@ class LifecycleResponse(BaseModel):
     confidence: float = 0.0
     debug_logs: Optional[List[str]] = None
     full_logs: Optional[str] = None
+    requires_human: bool = False
+    human_task: Optional[Dict[str, Union[str, int, Dict]]] = None
     is_conversation_finished: bool = False

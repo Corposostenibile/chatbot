@@ -14,13 +14,13 @@ from datapizza.agents import Agent
 
 from app.models.lifecycle import (
     LifecycleStage, 
-    ChatSession, 
     LifecycleResponse
 )
 from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
 from app.config import settings
 from app.database import get_db
 from app.models.database_models import SessionModel, MessageModel
+from app.models.database_models import HumanTaskModel
 from app.logger_config import log_capture
 import json as json_lib
 
@@ -152,7 +152,15 @@ class UnifiedAgent:
         except json.JSONDecodeError as e:
             logger.error(f"Errore nel parsing JSON: {e}")
             logger.error(f"Risposta AI: {ai_response}")
-            raise ParsingError(f"Errore nel parsing della risposta AI: {str(e)}")
+            # Proviamo a riparare comuni problemi nel JSON restituito dall'AI.
+            # Un problema frequente: l'AI include "doppi apici" non scappati all'interno di stringhe (es. "fai da te"),
+            # questo rompe il parsing standard. Proviamo una correzione semplice per i campi di testo.
+            try:
+                fixed = self._repair_unescaped_inner_quotes(cleaned_response, keys=["text", "reasoning", "message"])
+                return json.loads(fixed)
+            except Exception:
+                logger.error(f"Riparazione JSON fallita. Raw response: {ai_response}")
+                raise ParsingError(f"Errore nel parsing della risposta AI: {str(e)}")
 
     def _normalize_messages(self, messages: Union[str, Dict, List]) -> List[Dict[str, Union[str, int]]]:
         """Normalizza i messaggi da stringa, dict singolo o lista eterogenea a lista uniforme"""
@@ -176,6 +184,56 @@ class UnifiedAgent:
             return normalized_messages
         else:
             return [{"text": str(messages), "delay_ms": 0}]
+
+    def _repair_unescaped_inner_quotes(self, text: str, keys: list[str]) -> str:
+        """Ripara stringhe JSON dove l'AI ha inserito doppi apici non scappati all'interno del contenuto.
+
+        Strategia:
+        - Per ogni chiave in `keys`, trova le occorrenze del valore stringa associata
+        - Scandisci il contenuto del valore e scappa i doppi apici che non sono il delimitatore finale
+          (identificando come delimitatore finale l'apice doppio seguito da uno dei caratteri JSON validi: , ] })
+        - Ritorna il testo con le correzioni applicate
+
+        Nota: soluzione pragmatica per casi comuni (es. "fai da te"), non un parser JSON completo.
+        """
+        import re
+
+        if not text or not keys:
+            return text
+
+        chars = list(text)
+        for key in keys:
+            # Pattern che trova l'indice subito dopo "<key>" : "
+            pattern = re.compile(rf'"{re.escape(key)}"\s*:\s*"', re.IGNORECASE)
+            for m in pattern.finditer(text):
+                # Inizio del valore stringa
+                start = m.end()  # index of the opening quote char + 0
+                i = start
+                # Scandisce fino a trovare la fine della stringa che è: an unescaped '"' followed by optional spaces and one of ,}] or end
+                while i < len(chars):
+                    ch = chars[i]
+                    if ch == '"':
+                        # check if escaped
+                        if i > 0 and chars[i - 1] == '\\':
+                            i += 1
+                            continue
+
+                        # Lookahead to see if it's closing quote: next non-space char is , or } or ] or end of string
+                        j = i + 1
+                        while j < len(chars) and chars[j].isspace():
+                            j += 1
+                        if j >= len(chars) or chars[j] in [',', '}', ']']:
+                            # This is the real closing quote
+                            break
+                        else:
+                            # This is an inner quote, escape it
+                            chars[i] = '\\"'
+                            # Move past the newly inserted escape - adjust i accordingly
+                            i += 2
+                            continue
+                    i += 1
+
+        return ''.join(chars)
 
     async def _call_ai_agent(self, prompt: str, model_name: str = None, context: str = "") -> str:
         """Chiama l'agente AI e gestisce gli errori
@@ -219,9 +277,15 @@ class UnifiedAgent:
         new_lifecycle_str = response_data.get("new_lifecycle", session.current_lifecycle.value)
         reasoning = response_data.get("reasoning", "Risposta automatica")
         confidence = response_data.get("confidence", 0.5)
+        requires_human = response_data.get("requires_human", False)
+        human_task = response_data.get("human_task")
         
         # Normalizza messaggi
-        normalized_messages = self._normalize_messages(messages)
+        # If a human task is required, the AI should not return messages for the user
+        if requires_human:
+            normalized_messages = []
+        else:
+            normalized_messages = self._normalize_messages(messages)
         
         # Gestisci transizione lifecycle solo se richiesta dall'AI
         lifecycle_changed = False
@@ -235,6 +299,8 @@ class UnifiedAgent:
             "reasoning": reasoning,
             "confidence": confidence,
             "lifecycle_changed": lifecycle_changed,
+            "requires_human": requires_human,
+            "human_task": human_task,
             "full_message_text": " ".join([msg["text"] for msg in normalized_messages])
         }
 
@@ -286,17 +352,6 @@ class UnifiedAgent:
         # Contesto conversazione
         conversation_context = await self._build_conversation_context(session, db)
         
-        # Istruzioni specifiche per lifecycle
-        specific_instructions = [
-            "1. Usa il script come guida ma mantieni la conversazione fluida",
-            "2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle",
-            "3. Se decidi di spezzettare, specifica i delay tra i messaggi"
-        ]
-        
-        # Aggiungi istruzioni specifiche per CONTRASSEGNATO
-        if current_lifecycle == LifecycleStage.CONTRASSEGNATO:
-            specific_instructions.insert(0, "IMPORTANTE: NON SPEZZETTARE - Raccogli tutte le informazioni di base (nome, obiettivo, età) in UN UNICO messaggio senza delay.")
-        
         # Costruisci il prompt unificato
         unified_prompt = f"""LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
 
@@ -317,6 +372,7 @@ ISTRUZIONI SPECIFICHE PER QUESTO LIFECYCLE:
 1. Usa il script come guida ma mantieni la conversazione fluida
 2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
 3. Se decidi di spezzettare, specifica i delay tra i messaggi
+4. Nel caso in cui l'utente chiede delle cose a cui non sai rispondere, crea una task umana: "human_task": {{"title": "...", "description": "...", "assigned_to": "..."}} e imposta "requires_human": true
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
@@ -333,7 +389,14 @@ Devi rispondere SEMPRE in questo formato JSON:
     "should_change_lifecycle": true/false,
     "new_lifecycle": "{next_stage.value} o null",
     "reasoning": "Spiegazione del perché hai deciso di cambiare o non cambiare lifecycle",
-    "confidence": 0.0-1.0
+    "confidence": 0.0-1.0,
+    "requires_human": true/false,
+    "human_task": {{
+        "title": "Breve titolo della task",
+        "description": "Dettaglio della task per l'operatore umano",
+        "assigned_to": "opzionale@team.it",
+        "metadata": {{"key": "value"}}
+    }}
 }}
 
 IMPORTANTE:
@@ -407,8 +470,13 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     # Process AI response
                     contrassegnato_result = await self._process_ai_response(ai_response, session_refreshed, db)
                     
-                    # Add AI response to history
-                    await self._add_assistant_response_to_history(session_refreshed, contrassegnato_result["full_message_text"], db)
+                    # Add AI response to history (unless human task required)
+                    created_task = None
+                    if not contrassegnato_result.get("requires_human"):
+                        await self._add_assistant_response_to_history(session_refreshed, contrassegnato_result["full_message_text"], db)
+                    else:
+                        created_task = await self._create_human_task(session_refreshed, contrassegnato_result.get("human_task") or {}, db)
+                        log_capture.add_log("INFO", f"Human task created (contrassegnato first message): {created_task}")
                     
                     # Combine messages: auto response + AI response
                     combined_messages = [{"text": auto_response.strip(), "delay_ms": 0}]
@@ -429,7 +497,9 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         confidence=contrassegnato_result["confidence"],
                         debug_logs=log_capture.get_session_logs(),
                         full_logs=log_capture.get_session_logs_str(),
-                        is_conversation_finished=False
+                        is_conversation_finished=False,
+                        requires_human=contrassegnato_result.get("requires_human", False),
+                        human_task=created_task if contrassegnato_result.get("requires_human") else None
                     )
                 
                 # CASO NORMALE: genera il prompt unificato
@@ -476,7 +546,9 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     confidence=result["confidence"],
                     debug_logs=log_capture.get_session_logs(),
                     full_logs=log_capture.get_session_logs_str(),
-                    is_conversation_finished=session.is_conversation_finished
+                    is_conversation_finished=session.is_conversation_finished,
+                    requires_human=result.get("requires_human", False),
+                    human_task=created_task if result.get("requires_human") else None
                 )
                     
             except Exception as e:
@@ -535,6 +607,40 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
         db.add(ai_msg)
         
         await db.commit()
+
+    async def _create_human_task(self, session: SessionModel, task_payload: Dict, db: AsyncSession) -> Dict:
+        """Crea una task per intervento umano basata sul payload fornito dall'AI"""
+        try:
+            title = task_payload.get("title") or f"Task from session {session.session_id}"
+            description = task_payload.get("description") or "Task generata automaticamente dall'agente AI"
+            assigned_to = task_payload.get("assigned_to")
+            metadata = task_payload.get("metadata")
+
+            human_task = HumanTaskModel(
+                session_id=session.id,
+                title=title,
+                description=description,
+                assigned_to=assigned_to,
+                metadata_json=json_lib.dumps(metadata) if metadata else None,
+                created_by="agent"
+            )
+            db.add(human_task)
+            await db.commit()
+            await db.refresh(human_task)
+
+            return {
+                "id": human_task.id,
+                "session_id": session.session_id,
+                "title": human_task.title,
+                "description": human_task.description,
+                "status": human_task.status,
+                "assigned_to": human_task.assigned_to,
+                "created_at": human_task.created_at.isoformat(),
+                "metadata": json_lib.loads(human_task.metadata_json) if human_task.metadata_json else None
+            }
+        except Exception as e:
+            logger.error(f"Errore nella creazione della human task: {e}")
+            return {"error": str(e)}
 
     def _get_next_actions(self, current_lifecycle: LifecycleStage) -> List[str]:
         """Genera le prossime azioni suggerite basate sul lifecycle corrente"""
