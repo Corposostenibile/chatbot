@@ -19,6 +19,9 @@ class SessionModel(Base):
     is_conversation_finished: Mapped[bool] = mapped_column(default=False)  # Flag per conversazione finita
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    # Flag per batch aggregation: se True, l'agente sta attendendo nuovi messaggi prima di chiamare l'AI
+    is_batch_waiting: Mapped[bool] = mapped_column(default=False)
+    batch_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationship
     messages: Mapped[List["MessageModel"]] = relationship("MessageModel", back_populates="session", order_by="MessageModel.timestamp")

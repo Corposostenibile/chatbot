@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
+import asyncio
 
 from datapizza.clients.google import GoogleClient
 from datapizza.agents import Agent
@@ -143,6 +144,17 @@ class UnifiedAgent:
         if cleaned_response.endswith("```"):
             cleaned_response = cleaned_response[:-3]
         return cleaned_response.strip()
+
+    async def _add_user_message_to_history(self, session: SessionModel, user_message: str, db: AsyncSession) -> None:
+        """Aggiunge solo il messaggio utente alla cronologia senza risposta dell'assistente"""
+        user_msg = MessageModel(
+            session_id=session.id,
+            role="user",
+            message=user_message,
+            timestamp=datetime.now(timezone.utc)
+        )
+        db.add(user_msg)
+        await db.commit()
 
     def _parse_ai_response(self, ai_response: str) -> Dict:
         """Parssa la risposta JSON dell'AI"""
@@ -501,6 +513,49 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         requires_human=contrassegnato_result.get("requires_human", False),
                         human_task=created_task if contrassegnato_result.get("requires_human") else None
                     )
+
+                # If we are already in a batch wait window, append message and return queued response
+                if session.is_batch_waiting:
+                    # Save user message only and don't start a new AI call
+                    await self._add_user_message_to_history(session, user_message, db)
+                    log_capture.add_log("INFO", f"Message queued for session {session.session_id} in batch")
+                    return LifecycleResponse(
+                        messages=[],
+                        current_lifecycle=session.current_lifecycle,
+                        lifecycle_changed=False,
+                        previous_lifecycle=None,
+                        next_actions=self._get_next_actions(session.current_lifecycle),
+                        ai_reasoning="Messaggio messo in coda (batch aggregation)",
+                        confidence=1.0,
+                        debug_logs=log_capture.get_session_logs(),
+                        full_logs=log_capture.get_session_logs_str(),
+                        is_conversation_finished=session.is_conversation_finished
+                    )
+
+                # If not in batch mode, set batch waiting and delay the AI call to gather subsequent messages
+                # This prevents multiple AI calls when the user sends several messages quickly.
+                # Mark session as waiting for batch and commit
+                session.is_batch_waiting = True
+                session.batch_started_at = datetime.now(timezone.utc)
+                await db.commit()
+
+                # Add current user message to history and then wait for more messages
+                await self._add_user_message_to_history(session, user_message, db)
+
+                # Wait for aggregation window (default 60s). This is intentionally blocking the request.
+                wait_seconds = 60
+                log_capture.add_log("INFO", f"Batch wait started for session {session.session_id} - waiting {wait_seconds}s")
+                await asyncio.sleep(wait_seconds)
+
+                # Refresh session and proceed to generate prompt with aggregated messages
+                session = await db.get(SessionModel, session.id)
+                session.is_batch_waiting = False
+                session.batch_started_at = None
+                await db.commit()
+
+                # Now continue with the normal unified prompt generation using aggregated messages
+                unified_prompt = await self._get_unified_prompt(session, user_message, db)
+                log_capture.add_log("INFO", f"Batch window ended; calling AI for session {session.session_id}")
                 
                 # CASO NORMALE: genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)

@@ -200,16 +200,28 @@ EOF
 
     # Run database migrations
     if [[ -f "alembic.ini" ]]; then
-        # Try deterministic upgrade to head; if there are multiple heads, try 'heads'
-        if alembic upgrade head; then
-            log "Migrazioni database applicate ✓"
-        else
-            warn "alembic upgrade head fallito; provando a eseguire 'alembic upgrade heads' per applicare tutte le heads"
+        # Try deterministic upgrade to head. If multiple heads exist, detect and use 'heads'
+        # This avoids alembic printing an error and failing in CI when a merge is present.
+        HEAD_LINES=$(alembic heads --verbose 2>/dev/null | wc -l || true)
+        if [[ "$HEAD_LINES" -gt 1 ]]; then
+            warn "Rilevate più heads Alembic ($HEAD_LINES). Uso 'alembic upgrade heads' per applicare tutte le heads"
             if alembic upgrade heads; then
                 log "Migrazioni database applicate con 'heads' ✓"
             else
                 error "alembic upgrade heads fallito. Controlla le revisions presenti in 'alembic/versions'"
                 exit 1
+            fi
+        else
+            if alembic upgrade head; then
+                log "Migrazioni database applicate ✓"
+            else
+                warn "alembic upgrade head fallito; provando a eseguire 'alembic upgrade heads' per applicare tutte le heads"
+                if alembic upgrade heads; then
+                    log "Migrazioni database applicate con 'heads' ✓"
+                else
+                    error "alembic upgrade heads fallito. Controlla le revisions presenti in 'alembic/versions'"
+                    exit 1
+                fi
             fi
         fi
     else
@@ -515,8 +527,29 @@ conn.close()
     # Run migrations from scratch
     if [[ -f "alembic.ini" ]]; then
         log "Applicando migrazioni dall'inizio..."
-        alembic upgrade head
-        log "Migrazioni applicate ✓"
+        # Detect if there are multiple heads and choose `heads` to avoid Alembic 'Multiple head' errors.
+        HEAD_LINES=$(alembic heads --verbose 2>/dev/null | wc -l || true)
+        if [[ "$HEAD_LINES" -gt 1 ]]; then
+            warn "Rilevate più heads Alembic ($HEAD_LINES). Uso 'alembic upgrade heads' per applicare tutte le heads"
+            if alembic upgrade heads; then
+                log "Migrazioni applicate con 'heads' ✓"
+            else
+                error "alembic upgrade heads fallito; controlla le revisioni nella cartella alembic/versions"
+                exit 1
+            fi
+        else
+            if alembic upgrade head; then
+                log "Migrazioni applicate ✓"
+            else
+                warn "alembic upgrade head fallito; proviamo 'alembic upgrade heads' per applicare tutte le heads"
+                if alembic upgrade heads; then
+                    log "Migrazioni applicate con 'heads' ✓"
+                else
+                    error "alembic upgrade heads fallito; controlla le revisioni nella cartella alembic/versions"
+                    exit 1
+                fi
+            fi
+        fi
     fi
 
     log "Database resettato ✓"
