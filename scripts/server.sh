@@ -687,7 +687,23 @@ db_migrate() {
     fi
 
     print_subheader "Esecuzione Migrazioni Alembic"
-    if docker-compose exec chatbot alembic -c /home/manu/chatbot/alembic.ini upgrade head; then
+    # Some Alembic setups can hold multiple heads (branches). Local script handles that
+    # gracefully by checking `alembic heads --verbose` and running `alembic upgrade heads`.
+    # Mirror that here when running in the container to avoid the "Multiple head" error.
+    # Use run --rm to avoid starting the running chatbot container (prevents Base.metadata.create_all race)
+    HEAD_LINES=$(docker-compose run --rm --no-deps chatbot alembic -c /app/alembic.ini heads --verbose 2>/dev/null | wc -l || true)
+    if [ "$HEAD_LINES" -gt 1 ]; then
+        print_warning "Rilevate più heads Alembic ($HEAD_LINES). Uso 'alembic upgrade heads' per applicare tutte le heads"
+        if docker-compose run --rm --no-deps chatbot alembic -c /app/alembic.ini upgrade heads; then
+            print_status "Migrazioni eseguite con successo"
+            return 0
+        else
+            print_error "alembic upgrade heads fallito. Controlla i log del container chatbot"
+            exit 1
+        fi
+    fi
+
+    if docker-compose run --rm --no-deps chatbot alembic -c /app/alembic.ini upgrade head; then
         print_status "Migrazioni eseguite con successo"
     else
         print_error "Errore nell'esecuzione delle migrazioni"
@@ -702,7 +718,7 @@ db_create() {
     print_header "🆕 CREAZIONE MIGRAZIONE DATABASE"
 
     print_subheader "Generazione Migrazione Alembic"
-    if docker-compose exec chatbot alembic -c /home/manu/chatbot/alembic.ini revision --autogenerate -m "$message"; then
+    if docker-compose run --rm --no-deps chatbot alembic -c /app/alembic.ini revision --autogenerate -m "$message"; then
         print_status "Migrazione creata con successo"
         print_info "Ricorda di eseguire: $0 db-migrate"
     else
@@ -750,14 +766,20 @@ db_reset() {
     docker-compose stop chatbot
 
     print_subheader "Reset Database"
+    docker-compose exec postgres psql -U chatbot -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'chatbot';" 2>/dev/null || true
     docker-compose exec postgres psql -U chatbot -d postgres -c "DROP DATABASE IF EXISTS chatbot;" 2>/dev/null || true
     docker-compose exec postgres psql -U chatbot -d postgres -c "CREATE DATABASE chatbot OWNER chatbot;" 2>/dev/null || true
 
-    print_subheader "Riavvio Servizi"
-    docker-compose start chatbot
+    print_subheader "Assicurati che il database sia attivo"
+    # Assicura che PostgreSQL sia in esecuzione: usiamo up -d per avviare il servizio
+    docker-compose up -d postgres
 
     print_subheader "Esecuzione Migrazioni"
+    # Esegui le migrazioni in un container temporaneo prima di avviare l'app
     db_migrate
+
+    print_subheader "Avvio Chatbot"
+    docker-compose start chatbot
 
     print_status "Database resettato con successo"
 }

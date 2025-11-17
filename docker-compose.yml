@@ -12,6 +12,8 @@ services:
       - ./.env:/app/.env
       # Mount della cartella alembic per migrazioni (read-write)
       - ./alembic:/app/alembic
+      # Mount del file di configurazione alembic
+      - ./alembic.ini:/app/alembic.ini
       # Mount degli script
       - ./scripts:/app/scripts
     environment:
