@@ -383,8 +383,8 @@ MESSAGGIO UTENTE: {user_message}
 ISTRUZIONI SPECIFICHE PER QUESTO LIFECYCLE:
 1. Usa il script come guida ma mantieni la conversazione fluida
 2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
-3. Se decidi di spezzettare, specifica i delay tra i messaggi
-4. Nel caso in cui l'utente chiede delle cose a cui non sai rispondere, crea una task umana: "human_task": {{"title": "...", "description": "...", "assigned_to": "..."}} e imposta "requires_human": true
+3. Se decidi di spezzettare, specifica i delay tra i messaggi, minimo 10 secondi tra messaggi multipli
+4. Nel caso in cui l'utente chiede delle cose a cui non sai rispondere, crea una task umana "human_task", ad esempio quando un utente chiede i costi dei programmi.
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
@@ -395,7 +395,7 @@ Devi rispondere SEMPRE in questo formato JSON:
     "messages": "La tua risposta completa" 
     OPPURE 
     "messages": [
-        {{"text": "Prima parte del messaggio", "delay_ms": 5000}},
+        {{"text": "Prima parte del messaggio", "delay_ms": 10000}},
         {{"text": "Seconda parte", "delay_ms": 10000}}
     ],
     "should_change_lifecycle": true/false,
