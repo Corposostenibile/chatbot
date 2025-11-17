@@ -37,8 +37,9 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
     LifecycleStage.IN_TARGET: {
         "script": list(LEVEL_3_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_DA_INVIARE,
-        "objective": "Presentare i benefici del percorso integrato e introdurre la consulenza gratuita",
+        "objective": "Presentare i benefici del percorso integrato e introdurre la consulenza gratuita.",
         "transition_indicators": [
+            "Solo se dopo aver presentato la consulenza gratuita, il cliente ha accettato di prenotare",
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
