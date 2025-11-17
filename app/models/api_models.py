@@ -12,6 +12,7 @@ class ChatMessage(BaseModel):
     session_id: Optional[str] = "default"
     model_name: Optional[str] = None  # Nome del modello AI selezionato
     context: Optional[Dict[str, Any]] = None
+    batch_wait_seconds: Optional[int] = None  # Numero di secondi da aspettare per aggregare messaggi (opzionale)
 
 
 class ChatResponse(BaseModel):

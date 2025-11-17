@@ -315,7 +315,8 @@ async def chat_endpoint(chat_message: ChatMessage):
         lifecycle_response = await unified_agent.chat(
             session_id=chat_message.session_id,
             user_message=chat_message.message,
-            model_name=chat_message.model_name
+            model_name=chat_message.model_name,
+            batch_wait_seconds=chat_message.batch_wait_seconds
         )
 
         # Estrai il testo per il logging

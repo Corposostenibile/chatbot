@@ -156,6 +156,11 @@
                                     <option value="">Caricamento modelli...</option>
                                 </select>
                             </div>
+                                <div class="form-group">
+                                    <label for="batchWaitSeconds">Batch wait (secondi):</label>
+                                    <input type="number" id="batchWaitSeconds" class="form-control" placeholder="60" min="0" max="600" value="60">
+                                    <small>Numero di secondi da aspettare per aggregare messaggi prima di chiamare l'AI. Imposta 0 per chiamata immediata.</small>
+                                </div>
                         </form>
                     </div>
                     <div class="sidebar-section">
@@ -257,6 +262,12 @@
         });
         sendBtn.addEventListener('click', sendMessage);
 
+        // New: batch wait seconds control
+        const batchWaitInput = document.getElementById('batchWaitSeconds');
+        if (!batchWaitInput) {
+            console.warn('batchWaitSeconds input not found; skipping initialization');
+        }
+
         async function sendMessage() {
             const message = messageInput.value.trim();
             const selectedModel = modelSelect.value || '';
@@ -279,6 +290,7 @@
                         session_id: currentSessionId,
                         message: message,
                         model_name: selectedModel
+                        , batch_wait_seconds: (batchWaitInput && batchWaitInput.value !== '') ? parseInt(batchWaitInput.value, 10) : null
                     })
                 });
 

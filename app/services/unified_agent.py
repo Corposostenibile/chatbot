@@ -421,7 +421,7 @@ IMPORTANTE:
         logger.info(f"Generated unified prompt for session {session.session_id}:\n{unified_prompt}")
         return unified_prompt
 
-    async def chat(self, session_id: str, user_message: str, model_name: str = None) -> LifecycleResponse:
+    async def chat(self, session_id: str, user_message: str, model_name: str = None, batch_wait_seconds: Optional[int] = None) -> LifecycleResponse:
         """
         Gestisce una conversazione completa con decisione automatica del lifecycle
         
@@ -543,9 +543,18 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 await self._add_user_message_to_history(session, user_message, db)
 
                 # Wait for aggregation window (default 60s). This is intentionally blocking the request.
-                wait_seconds = 60
+                # Respect explicit 0 value (no wait) vs None (default wait)
+                wait_seconds = int(batch_wait_seconds) if batch_wait_seconds is not None else 60
+                if wait_seconds < 0:
+                    wait_seconds = 0
                 log_capture.add_log("INFO", f"Batch wait started for session {session.session_id} - waiting {wait_seconds}s")
-                await asyncio.sleep(wait_seconds)
+                # Log a per-second countdown in the terminal like a timer
+                logger.info(f"Batch wait started for session {session.session_id} - waiting {wait_seconds}s")
+                for i in range(wait_seconds):
+                    # Update every second to show progress in terminal and debug logs
+                    logger.info(f"Batch wait for session {session.session_id}: {i+1}/{wait_seconds} s")
+                    log_capture.add_log("INFO", f"Batch wait for session {session.session_id}: {i+1}/{wait_seconds} s")
+                    await asyncio.sleep(1)
 
                 # Refresh session and proceed to generate prompt with aggregated messages
                 session = await db.get(SessionModel, session.id)

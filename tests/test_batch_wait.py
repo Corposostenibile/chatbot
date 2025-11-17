@@ -34,4 +34,28 @@ async def test_batch_wait_basic(db_session):
             await task
         except asyncio.CancelledError:
             pass
+
+
+async def test_batch_wait_custom_seconds(db_session):
+    """Verifica che il valore di batch_wait_seconds venga rispettato se passato (es. 1 secondo)"""
+    agent = UnifiedAgent()
+    async for db in db_session():
+        s = SessionModel(session_id='test-batch-2')
+        db.add(s)
+        await db.commit()
+        await db.refresh(s)
+
+        # Start the agent with a short custom wait
+        task = asyncio.create_task(agent.chat('test-batch-2', 'Hello', batch_wait_seconds=1))
+        await asyncio.sleep(0.1)
+
+        s = await db.get(SessionModel, s.id)
+        assert s.is_batch_waiting
+
+        # Cancel to cleanup promptly
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
 *** End Patch
