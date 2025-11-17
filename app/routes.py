@@ -22,6 +22,7 @@ import subprocess
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
+from app.models.lifecycle import LifecycleStage
 
 # Crea il router
 router = APIRouter()
@@ -291,9 +292,20 @@ async def chat_endpoint(chat_message: ChatMessage):
 
             if session and session.is_conversation_finished:
                 logger.warning(f"Tentativo di invio messaggio a conversazione finita per sessione {chat_message.session_id}")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Conversazione terminata. Non è più possibile inviare messaggi."
+                # Restituisci una risposta che indica che la conversazione è finita senza messaggi
+                return ChatResponse(
+                    messages=[],  # Lista vuota per indicare che non ci sono messaggi da mostrare
+                    session_id=chat_message.session_id,
+                    current_lifecycle=session.current_lifecycle.value,
+                    lifecycle_changed=False,
+                    previous_lifecycle=None,
+                    next_actions=[],
+                    ai_reasoning="Conversazione terminata",
+                    confidence=1.0,
+                    debug_logs=[],
+                    full_logs="",
+                    timestamp=str(int(time.time())),
+                    is_conversation_finished=True
                 )
 
         # Usa l'agente unificato
@@ -322,7 +334,8 @@ async def chat_endpoint(chat_message: ChatMessage):
             confidence=lifecycle_response.confidence,
             debug_logs=lifecycle_response.debug_logs,
             full_logs=lifecycle_response.full_logs,
-            timestamp=str(int(time.time()))
+            timestamp=str(int(time.time())),
+            is_conversation_finished=lifecycle_response.is_conversation_finished
         )
 
     except AIError as e:
@@ -388,6 +401,45 @@ async def get_session_info(session_id: str):
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel recupero informazioni sessione {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore interno del server: {str(e)}")
+
+
+@router.post("/session/{session_id}/finish")
+async def finish_session(session_id: str, set_lifecycle: bool = True):
+    """Marca la sessione come finita e opzionalmente setta il lifecycle su LINK_INVIATO
+
+    La front-end può chiamare questa rotta per marcare la sessione come completata
+    quando viene mostrata la grafica di fine conversazione.
+    """
+    try:
+        async for db in get_db():
+            result = await db.execute(
+                select(SessionModel).where(SessionModel.session_id == session_id)
+            )
+            session = result.scalar_one_or_none()
+
+            if not session:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            # Imposta la flag di conversazione finita
+            session.is_conversation_finished = True
+            # Se richiesto, imposta lifecycle su LINK_INVIATO
+            if set_lifecycle:
+                session.current_lifecycle = LifecycleStage.LINK_INVIATO
+
+            await db.commit()
+
+            return {
+                "session_id": session.session_id,
+                "is_conversation_finished": session.is_conversation_finished,
+                "current_lifecycle": session.current_lifecycle.value,
+                "message": "Sessione marcata come finita"
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel marcare la sessione come finita: {e}")
         raise HTTPException(status_code=500, detail=f"Errore interno del server: {str(e)}")
 
 

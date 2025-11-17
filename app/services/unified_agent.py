@@ -154,10 +154,15 @@ class UnifiedAgent:
             logger.error(f"Risposta AI: {ai_response}")
             raise ParsingError(f"Errore nel parsing della risposta AI: {str(e)}")
 
-    def _normalize_messages(self, messages: Union[str, List]) -> List[Dict[str, Union[str, int]]]:
-        """Normalizza i messaggi da stringa o lista eterogenea a lista uniforme"""
+    def _normalize_messages(self, messages: Union[str, Dict, List]) -> List[Dict[str, Union[str, int]]]:
+        """Normalizza i messaggi da stringa, dict singolo o lista eterogenea a lista uniforme"""
         if isinstance(messages, str):
             return [{"text": messages, "delay_ms": 0}]
+        elif isinstance(messages, dict):
+            return [{
+                "text": messages.get("text", ""),
+                "delay_ms": messages.get("delay_ms", 0)
+            }]
         elif isinstance(messages, list):
             normalized_messages = []
             for msg in messages:
@@ -322,8 +327,8 @@ Devi rispondere SEMPRE in questo formato JSON:
     "messages": "La tua risposta completa" 
     OPPURE 
     "messages": [
-        {{"text": "Prima parte del messaggio", "delay_ms": 1000}},
-        {{"text": "Seconda parte", "delay_ms": 2000}}
+        {{"text": "Prima parte del messaggio", "delay_ms": 5000}},
+        {{"text": "Seconda parte", "delay_ms": 10000}}
     ],
     "should_change_lifecycle": true/false,
     "new_lifecycle": "{next_stage.value} o null",
@@ -332,8 +337,8 @@ Devi rispondere SEMPRE in questo formato JSON:
 }}
 
 IMPORTANTE:
-- Il campo "messages" può essere una stringa (risposta singola) o un array di oggetti
-- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo)
+- Il campo "messages" può essere una stringa (risposta singola senza delay), un oggetto singolo con "text" e "delay_ms", o un array di oggetti
+- Ogni oggetto nell'array ha "text" (il messaggio) e "delay_ms" (millisecondi di attesa prima del prossimo, minimo 10000ms se multipli)
 - Cambia lifecycle solo se sei sicuro al 70% o più (confidence >= 0.7)
 - La risposta deve essere SEMPRE un JSON valido
 """
@@ -423,7 +428,8 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         ai_reasoning=contrassegnato_result["reasoning"],
                         confidence=contrassegnato_result["confidence"],
                         debug_logs=log_capture.get_session_logs(),
-                        full_logs=log_capture.get_session_logs_str()
+                        full_logs=log_capture.get_session_logs_str(),
+                        is_conversation_finished=False
                     )
                 
                 # CASO NORMALE: genera il prompt unificato
@@ -469,7 +475,8 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     ai_reasoning=result["reasoning"],
                     confidence=result["confidence"],
                     debug_logs=log_capture.get_session_logs(),
-                    full_logs=log_capture.get_session_logs_str()
+                    full_logs=log_capture.get_session_logs_str(),
+                    is_conversation_finished=session.is_conversation_finished
                 )
                     
             except Exception as e:

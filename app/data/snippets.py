@@ -5,11 +5,14 @@ Organizzati per categoria e lifecycle
 
 # Snippet per il Lifecycle 2 (CONTRASSEGNATO)
 LEVEL_2_SNIPPETS = {
-    "livello_2": "Bene! :)",
-    "a_livello_2_b": """Per poterti aiutare al meglio ti chiedo:
-1) Qual è il risultato che vorresti raggiungere? 
-2) Posso chiederti la tua età?
-Ps. Posso chiederti il tuo nome per non fare gaffe? 🙏""",
+    "livello_2": """Ti chiedo per favore di scrivermi intanto:
+1) Qual e' l'obiettivo nel dettaglio che vorresti raggiungere
+2) Cosa hai provato in passato per raggiungerlo
+3) La tua eta'
+
+Ps.Anche il tuo nome per non fare gaffe 😅
+
+Appena leggero' la tua risposta ti rispondero' personalmente!""",
 
     "livello_3_a": "Grazie per la condivisione 🙏",
     "livello_3_b": "Però vorrei capire qual è la tua motivazione, cosa ti spinge a cambiare proprio ora?",

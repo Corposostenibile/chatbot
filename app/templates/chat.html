@@ -121,6 +121,18 @@
         /* --- Altri stili e responsive... --- */
         ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #aaa; }
         .logs-content::-webkit-scrollbar-track { background: #2a2a2a; } .logs-content::-webkit-scrollbar-thumb { background: #555; } .logs-content::-webkit-scrollbar-thumb:hover { background: #777; }
+        /* --- Stili per schermata di fine conversazione --- */
+        .finished-overlay {
+            position: absolute;
+            inset: 0; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,246,255,0.95));
+            z-index: 70; border-radius: 12px; padding: 20px;
+        }
+        .finished-card { text-align: center; padding: 30px 40px; background: white; box-shadow: 0 8px 30px rgba(102,112,255,0.12); border-radius: 16px; }
+        .finished-emoji { font-size: 60px; margin-bottom: 12px; }
+        .finished-text { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+        .finished-sub { color: #666; font-size: 14px; margin-bottom: 12px; }
+        .btn-finish { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; }
         @media (max-width: 1024px) { body { overflow: auto; } .main-container { flex-direction: column; height: auto; } .chat-column, .logs-column { min-height: 400px; } }
     </style>
 </head>
@@ -162,6 +174,7 @@
                     <small id="sessionDisplay">Nessuna sessione</small>
                 </div>
                 <div class="chat-messages" id="chatMessages"></div>
+                <div id="finishedOverlayPlaceholder" style="position: relative; min-height: 0;"></div>
                 <div class="chat-input-area">
                     <textarea id="message" class="form-control" placeholder="Scrivi un messaggio..." rows="1"></textarea>
                     <button type="submit" id="sendBtn" class="btn-send"><i class="fa-solid fa-paper-plane"></i></button>
@@ -274,7 +287,11 @@
                 const data = await response.json();
                 
                 // Gestisci messaggi multipli
-                if (Array.isArray(data.messages)) {
+                if (data.is_conversation_finished) {
+                    // Mostra la grafica di fine conversazione (il backend ha già marcato la sessione come finita)
+                    showConversationFinishedUI('Conversazione terminata');
+                }
+                else if (Array.isArray(data.messages)) {
                     // Mostra i messaggi uno alla volta con delay
                     for (let i = 0; i < data.messages.length; i++) {
                         const msg = data.messages[i];
@@ -401,6 +418,42 @@
         function getTimestamp() { return new Date().toLocaleTimeString('it-IT', { hour12: false }); }
         
         initialize();
+    </script>
+    <script>
+        // Il backend marca la sessione come finita automaticamente quando il lifecycle
+        // viene aggiornato a LINK_INVIATO: non è richiesto che il frontend chiami nulla.
+
+        function showConversationFinishedUI(message = 'Conversazione terminata') {
+            // disabilita input
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            const placeholder = document.getElementById('finishedOverlayPlaceholder');
+            const overlay = document.createElement('div');
+            overlay.className = 'finished-overlay';
+            overlay.id = 'finishedOverlay';
+
+            overlay.innerHTML = `
+                <div class="finished-card">
+                    <div class="finished-emoji">🎉</div>
+                    <div class="finished-text">${escapeHtml(message)}</div>
+                    <div class="finished-sub">Grazie! Se vuoi, puoi chiudere questa finestra o avviare una nuova conversazione.</div>
+                    <button class="btn-finish" id="finishedCloseBtn">Chiudi</button>
+                </div>
+            `;
+
+            placeholder.appendChild(overlay);
+            document.getElementById('finishedCloseBtn').addEventListener('click', () => {
+                removeConversationFinishedUI();
+            });
+        }
+
+        function removeConversationFinishedUI() {
+            const overlay = document.getElementById('finishedOverlay');
+            if (overlay) overlay.remove();
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+        }
     </script>
 </body>
 </html>

@@ -27,6 +27,7 @@ class ChatResponse(BaseModel):
     debug_logs: Optional[List[str]] = None
     full_logs: Optional[str] = None
     timestamp: str
+    is_conversation_finished: bool = False
 
 
 class HealthCheck(BaseModel):
