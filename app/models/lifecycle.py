@@ -2,7 +2,7 @@
 Modelli per la gestione dei lifecycle del chatbot
 """
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 from pydantic import BaseModel
 
 
@@ -53,11 +53,11 @@ class LifecycleResponse(BaseModel):
     current_lifecycle: LifecycleStage
     lifecycle_changed: bool = False
     previous_lifecycle: Optional[LifecycleStage] = None
-    next_actions: List[str] = []
+    # next_actions deprecated - removed to simplify API
     ai_reasoning: str = ""
     confidence: float = 0.0
     debug_logs: Optional[List[str]] = None
     full_logs: Optional[str] = None
     requires_human: bool = False
-    human_task: Optional[Dict[str, Union[str, int, Dict]]] = None
+    human_task: Optional[Dict[str, Any]] = None
     is_conversation_finished: bool = False

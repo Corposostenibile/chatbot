@@ -168,6 +168,8 @@ class UnifiedAgent:
             # Un problema frequente: l'AI include "doppi apici" non scappati all'interno di stringhe (es. "fai da te"),
             # questo rompe il parsing standard. Proviamo una correzione semplice per i campi di testo.
             try:
+                # Initialize variables used in all control flows
+                created_task = None
                 fixed = self._repair_unescaped_inner_quotes(cleaned_response, keys=["text", "reasoning", "message"])
                 return json.loads(fixed)
             except Exception:
@@ -384,7 +386,7 @@ ISTRUZIONI SPECIFICHE PER QUESTO LIFECYCLE:
 1. Usa il script come guida ma mantieni la conversazione fluida
 2. Valuta se il messaggio dell'utente indica che è pronto per il prossimo lifecycle
 3. Se decidi di spezzettare, specifica i delay tra i messaggi, minimo 10 secondi tra messaggi multipli
-4. Nel caso in cui l'utente chiede delle cose a cui non sai rispondere, crea una task umana "human_task", ad esempio quando un utente chiede i costi dei programmi.
+4. Nel caso in cui l'utente chiede delle cose a cui non sai rispondere, crea una task umana "human_task", ad esempio per richieste che richiedono l'attenzione di un professionista.
 
 INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage else 'NESSUNO'}):
 {chr(10).join(f"- {indicator}" for indicator in transition_indicators) if transition_indicators else "- Lifecycle finale raggiunto"}
@@ -497,14 +499,11 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     else:
                         combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000})
                     
-                    next_actions = self._get_next_actions(session_refreshed.current_lifecycle)
-                    
                     return LifecycleResponse(
                         messages=combined_messages,
                         current_lifecycle=session_refreshed.current_lifecycle,
                         lifecycle_changed=True,
                         previous_lifecycle=previous_lifecycle,
-                        next_actions=next_actions,
                         ai_reasoning=contrassegnato_result["reasoning"],
                         confidence=contrassegnato_result["confidence"],
                         debug_logs=log_capture.get_session_logs(),
@@ -524,7 +523,6 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         current_lifecycle=session.current_lifecycle,
                         lifecycle_changed=False,
                         previous_lifecycle=None,
-                        next_actions=self._get_next_actions(session.current_lifecycle),
                         ai_reasoning="Messaggio messo in coda (batch aggregation)",
                         confidence=1.0,
                         debug_logs=log_capture.get_session_logs(),
@@ -552,8 +550,11 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 logger.info(f"Batch wait started for session {session.session_id} - waiting {wait_seconds}s")
                 for i in range(wait_seconds):
                     # Update every second to show progress in terminal and debug logs
-                    logger.info(f"Batch wait for session {session.session_id}: {i+1}/{wait_seconds} s")
-                    log_capture.add_log("INFO", f"Batch wait for session {session.session_id}: {i+1}/{wait_seconds} s")
+                    elapsed = i + 1
+                    remaining = max(0, wait_seconds - elapsed)
+                    timer_msg = f"Batch wait for session {session.session_id}: elapsed={elapsed}s, remaining={remaining}s ({elapsed}/{wait_seconds})"
+                    logger.info(timer_msg)
+                    log_capture.add_log("INFO", timer_msg)
                     await asyncio.sleep(1)
 
                 # Refresh session and proceed to generate prompt with aggregated messages
@@ -592,11 +593,19 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 log_capture.add_log("INFO", "JSON parsed successfully")
                 
                 # Aggiungi il messaggio alla cronologia
-                await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
-                log_capture.add_log("INFO", "Conversation history updated")
+                # Se l'AI richiede intervento umano, creiamo prima la task e NON aggiungiamo la risposta dell'assistente
+                # alla cronologia per evitare che risposte incomplete vengano salvate.
+                created_task = None
+                if result.get("requires_human"):
+                    # Salviamo solo il messaggio utente e creiamo la human task
+                    await self._add_user_message_to_history(session, user_message, db)
+                    created_task = await self._create_human_task(session, result.get("human_task") or {}, db)
+                    log_capture.add_log("INFO", f"Human task created: {created_task}")
+                else:
+                    await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
+                    log_capture.add_log("INFO", "Conversation history updated")
                 
-                # Genera next actions
-                next_actions = self._get_next_actions(session.current_lifecycle)
+                # `next_actions` removed - dropping per previous decision
                 
                 log_capture.add_log("INFO", "Response ready")
                 
@@ -605,7 +614,6 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     current_lifecycle=session.current_lifecycle,
                     lifecycle_changed=result["lifecycle_changed"],
                     previous_lifecycle=previous_lifecycle if result["lifecycle_changed"] else None,
-                    next_actions=next_actions,
                     ai_reasoning=result["reasoning"],
                     confidence=result["confidence"],
                     debug_logs=log_capture.get_session_logs(),
@@ -700,38 +708,14 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 "status": human_task.status,
                 "assigned_to": human_task.assigned_to,
                 "created_at": human_task.created_at.isoformat(),
-                "metadata": json_lib.loads(human_task.metadata_json) if human_task.metadata_json else None
+                    # Ensure `metadata` is always a dict (empty if none) to avoid Pydantic strict validation
+                    "metadata": json_lib.loads(human_task.metadata_json) if human_task.metadata_json else {}
             }
         except Exception as e:
             logger.error(f"Errore nella creazione della human task: {e}")
             return {"error": str(e)}
 
-    def _get_next_actions(self, current_lifecycle: LifecycleStage) -> List[str]:
-        """Genera le prossime azioni suggerite basate sul lifecycle corrente"""
-        actions_map = {
-            LifecycleStage.CONTRASSEGNATO: [
-                "Approfondisci i problemi identificati",
-                "Valuta il livello di motivazione del cliente",
-                "Inizia a presentare i benefici del percorso"
-            ],
-            LifecycleStage.IN_TARGET: [
-                "Presenta i benefici del percorso integrato",
-                "Spiega l'approccio nutrizione + psicologia",
-                "Introduci la consulenza gratuita"
-            ],
-            LifecycleStage.LINK_DA_INVIARE: [
-                "Conferma l'interesse per la consulenza",
-                "Prepara per l'invio del link di prenotazione",
-                "Rassicura sulla qualità del servizio"
-            ],
-            LifecycleStage.LINK_INVIATO: [
-                "Conferma l'invio del link",
-                "Fornisci istruzioni per la prenotazione",
-                "Rimani disponibile per domande"
-            ]
-        }
-        
-        return actions_map.get(current_lifecycle, ["Continua la conversazione"])
+    # _get_next_actions removed: no longer implemented — next_actions deprecated
 
     async def get_session_info(self, session_id: str) -> Optional[Dict]:
         """Ottiene informazioni sulla sessione"""

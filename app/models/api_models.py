@@ -22,7 +22,7 @@ class ChatResponse(BaseModel):
     current_lifecycle: str
     lifecycle_changed: bool = False
     previous_lifecycle: Optional[str] = None
-    next_actions: List[str] = []
+    # `next_actions` removed: this feature was deprecated — see PR notes
     ai_reasoning: Optional[str] = None
     confidence: float = 0.0
     debug_logs: Optional[List[str]] = None

@@ -302,7 +302,6 @@ async def chat_endpoint(chat_message: ChatMessage):
                     current_lifecycle=session.current_lifecycle.value,
                     lifecycle_changed=False,
                     previous_lifecycle=None,
-                    next_actions=[],
                     ai_reasoning="Conversazione terminata",
                     confidence=1.0,
                     debug_logs=[],
@@ -333,7 +332,7 @@ async def chat_endpoint(chat_message: ChatMessage):
             current_lifecycle=lifecycle_response.current_lifecycle.value,
             lifecycle_changed=lifecycle_response.lifecycle_changed,
             previous_lifecycle=lifecycle_response.previous_lifecycle.value if lifecycle_response.previous_lifecycle else None,
-            next_actions=lifecycle_response.next_actions,
+            # next_actions removed - no longer part of API
             ai_reasoning=lifecycle_response.ai_reasoning,
             confidence=lifecycle_response.confidence,
             debug_logs=lifecycle_response.debug_logs,

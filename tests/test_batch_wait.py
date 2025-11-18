@@ -34,8 +34,6 @@ async def test_batch_wait_basic(db_session):
             await task
         except asyncio.CancelledError:
             pass
-
-
 async def test_batch_wait_custom_seconds(db_session):
     """Verifica che il valore di batch_wait_seconds venga rispettato se passato (es. 1 secondo)"""
     agent = UnifiedAgent()

@@ -127,9 +127,9 @@ TEMPO 1610ms: SAVE CONVERSAZIONE
 ├─ INSERT assistant response nel database
 ├─ await db.commit()
 │
-TEMPO 1620ms: CALCOLO NEXT ACTIONS
+TEMPO 1620ms: CALCOLO SUGGERIMENTI (DEPRECATO: `next_actions` rimosso dall'API)
 │
-├─ _get_next_actions(current_lifecycle) fornisce:
+├─ _get_next_actions(current_lifecycle) fornisce (DEPRECATO - ora fornito come 'advice' in documentazione):
 │  ├─ NUOVA_LEAD: ["Ascolta attivamente", "Fai domande", "Mostra empatia"]
 │  ├─ CONTRASSEGNATO: ["Approfondisci", "Valuta motivazione", "Presenta benefici"]
 │  ├─ IN_TARGET: ["Presenta soluzione", "Spiega integrazione", "Introduci consulenza"]
@@ -143,7 +143,7 @@ TEMPO 1630ms: COSTRUZIONE RESPONSE OBJECT
 │  ├─ current_lifecycle: stage attuale
 │  ├─ lifecycle_changed: true/false
 │  ├─ previous_lifecycle: stage precedente (se cambiato)
-│  ├─ next_actions: lista azioni consigliate
+│  ├─ (next_actions deprecato) Suggerimenti o 'advice' non più esposti nell'API
 │  └─ ai_reasoning: spiegazione decisione
 │
 TEMPO 1640ms: RISPOSTA INVIATA
@@ -226,7 +226,7 @@ FORMATO RISPOSTA RICHIESTO:
   "current_lifecycle": "contrassegnato",
   "lifecycle_changed": true,
   "previous_lifecycle": "nuova_lead",
-  "next_actions": [
+  "advice": [
     "Approfondisci i problemi identificati",
     "Valuta il livello di motivazione del cliente",
     "Inizia a presentare i benefici del percorso"
@@ -565,7 +565,7 @@ async def general_exception_handler(request, exc):
   "current_lifecycle": "contrassegnato",
   "lifecycle_changed": true,
   "previous_lifecycle": "nuova_lead",
-  "next_actions": [
+  "advice": [
     "Approfondisci i problemi identificati",
     "Valuta il livello di motivazione del cliente"
   ],
