@@ -817,10 +817,16 @@ async def session_tasks_dashboard(session_id: str, request: Request):
                     'created_at': t.created_at.isoformat(),
                 })
 
+            # Avoid triggering lazy load on session.messages (which would cause greenlet_spawn error)
+            # Do an explicit count query instead
+            from app.models.database_models import MessageModel
+            result_count = await db.execute(select(func.count(MessageModel.id)).where(MessageModel.session_id == session.id))
+            message_count = result_count.scalar() or 0
+
             session_info = {
                 'session_id': session.session_id,
                 'current_lifecycle': session.current_lifecycle.value,
-                'message_count': len(session.messages),
+                'message_count': int(message_count),
                 'task_count': len(tasks)
             }
 
