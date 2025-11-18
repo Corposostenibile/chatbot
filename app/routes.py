@@ -803,6 +803,7 @@ async def session_tasks_dashboard(session_id: str, request: Request):
             result_tasks = await db.execute(stmt_tasks)
             tasks = result_tasks.scalars().all()
 
+            # Prepare data before exiting async context
             tasks_data = []
             for t in tasks:
                 tasks_data.append({
@@ -823,11 +824,12 @@ async def session_tasks_dashboard(session_id: str, request: Request):
                 'task_count': len(tasks)
             }
 
-            return templates.TemplateResponse('session_tasks.html', {
-                'request': request,
-                'session': session_info,
-                'tasks': tasks_data
-            })
+        # Return response after exiting async context
+        return templates.TemplateResponse('session_tasks.html', {
+            'request': request,
+            'session': session_info,
+            'tasks': tasks_data
+        })
     except HTTPException:
         raise
     except Exception as e:
