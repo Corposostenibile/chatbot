@@ -70,6 +70,7 @@
         td {
             padding: 12px 15px;
             border-bottom: 1px solid #e5e7eb;
+            vertical-align: middle; /* keep cells aligned */
         }
 
         tbody tr {
@@ -104,6 +105,20 @@
             border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 500;
+        }
+
+        /* Task description: prevent taking full height, allow up to 3 lines with ellipsis */
+        .task-desc {
+            max-width: 100%;
+            display: -webkit-box;
+            -webkit-line-clamp: 3; /* show at most 3 lines */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.3rem;
+            max-height: calc(1.3rem * 3 + 6px);
         }
 
         .status-open {
@@ -232,7 +247,7 @@
                         <td>#${t.id}</td>
                         <td>${t.session_id ? `<code>${t.session_id}</code>` : '-'}</td>
                         <td><strong>${escapeHtml(t.title)}</strong></td>
-                        <td>${escapeHtml(t.description || '-')}</td>
+                        <td><div class="task-desc">${escapeHtml(t.description || '-')}</div></td>
                         <td>${escapeHtml(t.assigned_to || '-')}</td>
                         <td>${new Date(t.created_at).toLocaleString('it-IT')}</td>
                         <td><span class="status-badge ${statusClass}">${statusText}</span></td>
