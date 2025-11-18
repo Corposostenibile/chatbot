@@ -300,7 +300,12 @@
                 
                 // Gestisci casi speciali
                 if (data.requires_human) {
+                    // Show a small badge but if the request was blocked due to an open task, show the blocking overlay
                     showHumanTaskCreatedUI(data.human_task || {id: 'N/A', title: 'Assistenza richiesta'});
+                    // If messages empty, that means the backend blocked the flow — show overlay
+                    if (!data.messages || (Array.isArray(data.messages) && data.messages.length === 0)) {
+                        showHumanTaskOpenUI(data.human_task || {id: 'N/A', title: 'Assistenza richiesta'});
+                    }
                 }
                 // Gestisci messaggi multipli
                 if (data.is_conversation_finished) {
@@ -488,6 +493,30 @@
                 // Apri una semplice alert con i titoli (quick view)
                 const summary = tasks.map(t => `#${t.id} ${t.title} - ${t.status}`).join('\n');
                 alert(`Tasks per sessione ${currentSessionId}:\n\n${summary}`);
+            });
+        }
+
+        function showHumanTaskOpenUI(taskInfo) {
+            // Show blocking overlay to stop further messages until task is completed
+            const placeholder = document.getElementById('finishedOverlayPlaceholder');
+            removeConversationFinishedUI();
+            const overlay = document.createElement('div');
+            overlay.className = 'finished-overlay';
+            overlay.id = 'humanTaskOverlay';
+            overlay.innerHTML = `
+                <div class="finished-card">
+                    <div class="finished-emoji">🛑</div>
+                    <div class="finished-text">Intervento umano necessario</div>
+                    <div class="finished-sub">La conversazione è stata bloccata perché è richiesta assistenza umana: <strong>${escapeHtml(taskInfo.title || '')}</strong></div>
+                    <div style="margin-top:10px"><button class="btn-finish" id="viewTasksBtn">Apri Tasks</button></div>
+                </div>
+            `;
+            placeholder.appendChild(overlay);
+            messageInput.disabled = true;
+            sendBtn.disabled = true;
+
+            document.getElementById('viewTasksBtn').addEventListener('click', () => {
+                window.open('/tasks', '_blank');
             });
         }
     </script>

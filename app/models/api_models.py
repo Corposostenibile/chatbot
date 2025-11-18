@@ -63,3 +63,9 @@ class HumanTaskCreate(BaseModel):
     session_id: Optional[str] = None
     assigned_to: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+
+
+class HumanTaskUpdate(BaseModel):
+    """Modello per aggiornare una human task (es. completarla)"""
+    completed: Optional[bool] = None
+    status: Optional[str] = None

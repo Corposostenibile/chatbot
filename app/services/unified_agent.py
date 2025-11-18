@@ -446,6 +446,40 @@ IMPORTANTE:
                 
                 # Ottieni o crea la sessione
                 session = await self.get_or_create_session(session_id, db)
+                # If there is an open human task associated with this session (not completed), we block the agent
+                # and ask for human intervention. This prevents the AI from continuing the conversation
+                # while a human is responsible for follow-up.
+                from sqlalchemy import and_
+                result_ht = await db.execute(
+                    select(HumanTaskModel).where(
+                        and_(HumanTaskModel.session_id == session.id, HumanTaskModel.completed == False)
+                    )
+                )
+                active_task = result_ht.scalar_one_or_none()
+                if active_task:
+                    log_capture.add_log("INFO", f"Flow blocked: human task {active_task.id} open for session {session.session_id}")
+                    # Save user message to history but don't proceed with AI — front-end will show the task dashboard
+                    await self._add_user_message_to_history(session, user_message, db)
+                    return LifecycleResponse(
+                        messages=[],
+                        current_lifecycle=session.current_lifecycle,
+                        lifecycle_changed=False,
+                        previous_lifecycle=None,
+                        ai_reasoning="Human task open; awaiting human completion",
+                        confidence=1.0,
+                        debug_logs=log_capture.get_session_logs(),
+                        full_logs=log_capture.get_session_logs_str(),
+                        is_conversation_finished=session.is_conversation_finished,
+                        requires_human=True,
+                        human_task={
+                            "id": active_task.id,
+                            "title": active_task.title,
+                            "description": active_task.description,
+                            "assigned_to": active_task.assigned_to,
+                            "created_at": active_task.created_at.isoformat(),
+                            "metadata": json_lib.loads(active_task.metadata_json) if active_task.metadata_json else None,
+                        }
+                    )
                 previous_lifecycle = session.current_lifecycle
                 
                 log_capture.add_log("INFO", f"Session loaded: {session_id}")

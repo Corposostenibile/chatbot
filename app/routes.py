@@ -17,7 +17,7 @@ from app.models.database_models import SessionModel, MessageModel, SystemPromptM
 from app.services.system_prompt_service import SystemPromptService
 from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
-from app.models.api_models import HumanTaskCreate
+from app.models.api_models import HumanTaskCreate, HumanTaskUpdate
 from app.database import get_db
 import json as json_lib
 import subprocess
@@ -480,6 +480,7 @@ async def create_human_task(task: HumanTaskCreate):
                 "description": new_task.description,
                 "assigned_to": new_task.assigned_to,
                 "status": new_task.status
+                , "completed": bool(new_task.completed)
             }
     except Exception as e:
         from app.main import logger
@@ -512,6 +513,7 @@ async def list_human_tasks(session_id: str = None):
                     "description": t.description,
                     "assigned_to": t.assigned_to,
                     "status": t.status,
+                    "completed": bool(t.completed),
                     "created_at": t.created_at.isoformat()
                 })
             return out
@@ -537,6 +539,7 @@ async def get_human_task(task_id: int):
                 "description": t.description,
                 "assigned_to": t.assigned_to,
                 "status": t.status,
+                "completed": bool(t.completed),
                 "metadata": json_lib.loads(t.metadata_json) if t.metadata_json else None,
                 "created_at": t.created_at.isoformat(),
                 "updated_at": t.updated_at.isoformat()
@@ -577,6 +580,40 @@ async def unified_agent_health_check():
             "status": "error",
             "message": f"Errore nel controllo: {str(e)}"
         }
+
+
+@router.put("/api/tasks/{task_id}")
+async def update_human_task(task_id: int, task_update: HumanTaskUpdate):
+    """Aggiorna una human task - permette di marcare completata"""
+    try:
+        async for db in get_db():
+            result = await db.execute(select(HumanTaskModel).where(HumanTaskModel.id == task_id))
+            t = result.scalar_one_or_none()
+            if not t:
+                raise HTTPException(status_code=404, detail="Task non trovata")
+
+            if task_update.completed is not None:
+                t.completed = bool(task_update.completed)
+                # optionally update status
+                t.status = "closed" if task_update.completed else t.status
+            if task_update.status:
+                t.status = task_update.status
+
+            await db.commit()
+            await db.refresh(t)
+
+            return {
+                "id": t.id,
+                "completed": bool(t.completed),
+                "status": t.status
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore aggiornamento task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/system-prompts", response_class=HTMLResponse)
@@ -673,18 +710,20 @@ async def get_system_prompt(prompt_id: int):
         from app.main import logger
         logger.error(f"Errore nel recupero del system prompt {prompt_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    """Ottiene il system prompt attivo"""
-    try:
-        content = await SystemPromptService.get_active_prompt()
-        if not content:
-            raise HTTPException(status_code=404, detail="Nessun prompt attivo trovato")
-        return {"content": content}
-    except HTTPException:
-        raise
-    except Exception as e:
-        from app.main import logger
-        logger.error(f"Errore nel recupero del prompt attivo: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    @router.get("/api/system-prompts/active")
+    async def get_system_prompt_active():
+        """Ottiene il system prompt attivo"""
+        try:
+            content = await SystemPromptService.get_active_prompt()
+            if not content:
+                raise HTTPException(status_code=404, detail="Nessun prompt attivo trovato")
+            return {"content": content}
+        except HTTPException:
+            raise
+        except Exception as e:
+            from app.main import logger
+            logger.error(f"Errore nel recupero del prompt attivo: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/system-prompts")
@@ -715,6 +754,33 @@ async def create_system_prompt(prompt: SystemPromptCreate):
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nella creazione del system prompt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tasks", response_class=HTMLResponse)
+async def human_tasks_dashboard(request: Request):
+    """Pagina dashboard per le human tasks"""
+    try:
+        async for db in get_db():
+            result = await db.execute(select(HumanTaskModel).order_by(HumanTaskModel.created_at.desc()))
+            tasks = result.scalars().all()
+
+            tasks_data = []
+            for t in tasks:
+                tasks_data.append({
+                    'id': t.id,
+                    'session_id': t.session_id,
+                    'title': t.title,
+                    'description': t.description,
+                    'assigned_to': t.assigned_to,
+                    'completed': bool(t.completed),
+                    'created_at': t.created_at,
+                })
+
+            return templates.TemplateResponse('human_tasks.html', { 'request': request, 'tasks': tasks_data })
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard human tasks: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -773,17 +839,20 @@ async def delete_system_prompt(prompt_id: int):
         from app.main import logger
         logger.error(f"Errore nell'eliminazione del system prompt {prompt_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+"""Endpoint API per eseguire comandi del server script"""
+@router.get("/api/execute/{command}")
+async def execute_command(command: str):
     """Endpoint API per eseguire comandi del server script"""
     try:
-        from app.main import logger
 
         # Mappa dei comandi disponibili
         available_commands = {
-            "server-status": ["./server", "server-status"],
-            "monitor-health": ["./server", "monitor-health"],
-            "ssl-check": ["./server", "ssl-check"],
-            "dependencies-check": ["./server", "dependencies-check"],
-            "dependencies-lock": ["./server", "dependencies-lock"]
+        "server-status": ["./server", "server-status"],
+        "monitor-health": ["./server", "monitor-health"],
+        "ssl-check": ["./server", "ssl-check"],
+        "dependencies-check": ["./server", "dependencies-check"],
+        "dependencies-lock": ["./server", "dependencies-lock"]
         }
 
         if command not in available_commands:
@@ -820,14 +889,14 @@ async def delete_system_prompt(prompt_id: int):
         with ThreadPoolExecutor() as executor:
             result = await loop.run_in_executor(executor, run_command)
 
-        if not result["success"]:
-            logger.error(f"Comando {command} fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Comando fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}"
-            )
+            if not result["success"]:
+                logger.error(f"Comando {command} fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Comando fallito: {result.get('stderr', result.get('error', 'Errore sconosciuto'))}"
+                )
 
-        logger.info(f"Comando {command} eseguito con successo")
+            logger.info(f"Comando {command} eseguito con successo")
         return {
             "command": command,
             "success": True,
