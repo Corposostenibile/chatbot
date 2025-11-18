@@ -121,6 +121,10 @@
             max-height: calc(1.3rem * 3 + 6px);
         }
 
+        /* Make description clickable */
+        .task-desc { cursor: pointer; }
+        .task-desc:hover { text-decoration: underline; }
+
         .status-open {
             background-color: #fef3c7;
             color: #92400e;
@@ -261,6 +265,17 @@
                     if (t.completed) {
                         row.classList.add('completed');
                     }
+                    // Description click should fetch full task details
+                    const descNode = row.querySelector('.task-desc');
+                    if (descNode) {
+                        descNode.addEventListener('click', async () => {
+                            try {
+                                await showTaskModalById(t.id);
+                            } catch (err) {
+                                console.error('Errore apertura modal task', err);
+                            }
+                        });
+                    }
                     
                     tbody.appendChild(row);
                 });
@@ -324,6 +339,94 @@
         
         // Auto-refresh every 30 seconds
         setInterval(loadTasks, 30000);
+    </script>
+
+    <!-- Modal for task details -->
+    <div id="taskModalOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
+        <div id="taskModal" style="background:white; width:clamp(320px, 60%, 900px); border-radius:12px; padding:20px; box-shadow:0 8px 60px rgba(0,0,0,0.4);">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                <h3 id="modalTitle" style="margin:0; font-size:1.25rem;"></h3>
+                <div style="display:flex; gap:8px;">
+                    <button id="modalCompleteBtn" class="btn-success" style="padding:8px 12px; font-size:0.9rem;">Segna completata</button>
+                    <button id="modalCloseBtn" class="btn btn-secondary" style="padding:8px 12px; font-size:0.9rem;">Chiudi</button>
+                </div>
+            </div>
+            <div style="margin-top:12px; display:grid; grid-template-columns:1fr 200px; gap:18px;">
+                <div>
+                    <p id="modalDesc" style="color:#444; white-space:pre-wrap; line-height:1.4;"></p>
+                    <p style="color:#666; font-size:0.9rem; margin-top:10px;"><strong>Assegnato a:</strong> <span id="modalAssigned">-</span></p>
+                    <p style="color:#666; font-size:0.9rem;"><strong>Sessione:</strong> <code id="modalSession">-</code></p>
+                    <p style="color:#666; font-size:0.9rem;"><strong>Creato il:</strong> <span id="modalCreatedAt">-</span></p>
+                </div>
+                <div>
+                    <div style="background:#f9fafb; padding:12px; border-radius:8px; border:1px solid #eee; max-height:220px; overflow:auto;">
+                        <h6 style="margin:4px 0 8px;">Metadata</h6>
+                        <pre id="modalMetadata" style="font-family: monospace; font-size:12px; white-space:pre-wrap; margin:0; color:#333;">-</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper to show modal & inject task data
+        async function showTaskModalById(taskId) {
+            try {
+                const resp = await fetch(`/api/tasks/${taskId}`);
+                if (!resp.ok) throw new Error('Task not found');
+                const task = await resp.json();
+                showTaskModal(task);
+            } catch (err) {
+                console.error(err);
+                alert('Errore nel recupero della task');
+            }
+        }
+
+        function showTaskModal(task) {
+            const overlay = document.getElementById('taskModalOverlay');
+            document.getElementById('modalTitle').textContent = task.title || 'Task';
+            document.getElementById('modalDesc').textContent = task.description || '-';
+            document.getElementById('modalAssigned').textContent = task.assigned_to || '-';
+            document.getElementById('modalSession').textContent = task.session_id || '-';
+            document.getElementById('modalCreatedAt').textContent = new Date(task.created_at).toLocaleString('it-IT');
+            try {
+                const metadata = task.metadata ? JSON.stringify(task.metadata, null, 2) : '-';
+                document.getElementById('modalMetadata').textContent = metadata;
+            } catch (err) {
+                document.getElementById('modalMetadata').textContent = '-';
+            }
+
+            document.getElementById('modalCompleteBtn').dataset.id = task.id;
+            overlay.style.display = 'flex';
+        }
+
+        function hideTaskModal() {
+            const overlay = document.getElementById('taskModalOverlay');
+            overlay.style.display = 'none';
+        }
+
+        // Toggle complete from modal
+        document.getElementById('modalCompleteBtn').addEventListener('click', async function() {
+            const id = this.dataset.id;
+            if(!id) return;
+            const btn = this;
+            btn.disabled = true;
+            try {
+                const resp = await fetch(`/api/tasks/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ completed: true })});
+                if (!resp.ok) throw new Error('update failed');
+                // refresh tasks & close
+                await loadTasks();
+                hideTaskModal();
+            } catch (err) {
+                console.error(err);
+                alert('Errore nel marcare completata');
+            } finally { btn.disabled = false; }
+        });
+
+        document.getElementById('modalCloseBtn').addEventListener('click', hideTaskModal);
+
+        // Close on ESC
+        document.addEventListener('keydown', (e) => { if(e.key === 'Escape') hideTaskModal(); });
     </script>
 </body>
 </html>
