@@ -499,14 +499,8 @@
             badge.style.margin = '10px';
             badge.innerHTML = `<strong>Task creata</strong><div>${escapeHtml(taskInfo.title || 'Assistenza richiesta')}</div><div style="margin-top:6px;"><button class="btn-finish" id="viewTaskBtn">Visualizza tasks</button></div>`;
             sessionDisplay.parentNode.insertBefore(badge, sessionDisplay.nextSibling);
-            document.getElementById('viewTaskBtn').addEventListener('click', async () => {
-                // Carica tasks dal backend relative a questa sessione
-                const resp = await fetch(`/api/tasks?session_id=${currentSessionId}`);
-                if (!resp.ok) { alert('Errore nel recupero tasks'); return; }
-                const tasks = await resp.json();
-                // Apri una semplice alert con i titoli (quick view)
-                const summary = tasks.map(t => `#${t.id} ${t.title} - ${t.status}`).join('\n');
-                alert(`Tasks per sessione ${currentSessionId}:\n\n${summary}`);
+            document.getElementById('viewTaskBtn').addEventListener('click', () => {
+                window.open('/tasks', '_blank');
             });
         }
 
@@ -524,7 +518,7 @@
                     <div class="banner-title">Intervento umano necessario</div>
                     <div class="banner-sub">${escapeHtml(taskInfo.title || '')}</div>
                 </div>
-                <div style="margin-left:auto"><button class="btn" id="bannerViewTasks">Apri Tasks</button></div>
+                <div style="margin-left:auto"><button class="btn" id="bannerViewTasks">Visualizza Tasks</button></div>
             `;
             placeholder.appendChild(banner);
 
@@ -532,15 +526,7 @@
                 window.open('/tasks', '_blank');
             });
 
-            // show dismiss button
-            const dismissBtn = document.createElement('button');
-            dismissBtn.style.marginLeft = '8px';
-            dismissBtn.className = 'btn btn-secondary';
-            dismissBtn.textContent = 'Chiudi';
-            banner.appendChild(dismissBtn);
-            dismissBtn.addEventListener('click', () => {
-                banner.remove();
-            });
+            // No dismiss: banner remains until task is resolved or the user navigates away
         }
     </script>
 </body>
