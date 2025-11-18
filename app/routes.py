@@ -784,6 +784,62 @@ async def human_tasks_dashboard(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/sessions-tasks", response_class=HTMLResponse)
+async def sessions_tasks_dashboard(request: Request):
+    """Pagina dashboard per visualizzare task per sessione"""
+    try:
+        async for db in get_db():
+            # Fetch all sessions with their task counts
+            sessions_result = await db.execute(select(SessionModel).order_by(SessionModel.created_at.desc()))
+            sessions = sessions_result.scalars().all()
+            
+            sessions_data = []
+            for session in sessions:
+                # Count tasks for this session
+                tasks_result = await db.execute(
+                    select(HumanTaskModel).where(HumanTaskModel.session_id == session.id)
+                )
+                tasks = tasks_result.scalars().all()
+                
+                tasks_list = []
+                for t in tasks:
+                    tasks_list.append({
+                        'id': t.id,
+                        'title': t.title,
+                        'description': t.description,
+                        'assigned_to': t.assigned_to,
+                        'status': t.status,
+                        'completed': bool(t.completed),
+                        'created_at': t.created_at.isoformat() if t.created_at else None,
+                    })
+                
+                sessions_data.append({
+                    'id': session.id,
+                    'session_id': session.session_id,
+                    'current_lifecycle': session.current_lifecycle.value,
+                    'created_at': session.created_at.isoformat() if session.created_at else None,
+                    'task_count': len(tasks_list),
+                    'tasks': tasks_list,
+                    'open_task_count': sum(1 for t in tasks_list if not t['completed']),
+                })
+            
+            settings = get_settings()
+            return templates.TemplateResponse(
+                'sessions_tasks.html',
+                {
+                    'request': request,
+                    'sessions': sessions_data,
+                    'app_version': settings.app_version,
+                    'total_sessions': len(sessions_data),
+                    'total_tasks': sum(s['task_count'] for s in sessions_data),
+                }
+            )
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard sessions-tasks: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/api/system-prompts/{prompt_id}")
 async def update_system_prompt(prompt_id: int, prompt: SystemPromptUpdate):
     """Aggiorna un system prompt esistente"""
