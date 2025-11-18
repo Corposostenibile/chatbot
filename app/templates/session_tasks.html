@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Sessione - Chatbot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .breadcrumb {
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .breadcrumb a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb-sep {
+            margin: 0 8px;
+            opacity: 0.7;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .session-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 25px;
+        }
+
+        .info-box {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-label {
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #333;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-top: 8px;
+            word-break: break-word;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            border: none;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: middle;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: #f9fafb;
+        }
+
+        tbody tr.completed {
+            background-color: #ecfdf5;
+            opacity: 0.8;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-open {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-closed {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .task-desc {
+            max-width: 100%;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: normal;
+            word-break: break-word;
+            line-height: 1.3rem;
+            cursor: pointer;
+        }
+
+        .task-desc:hover {
+            text-decoration: underline;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #4caf50;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        .btn-back {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-bottom: 20px;
+        }
+
+        .btn-back:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        /* Modal for task details */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            width: clamp(320px, 60%, 900px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 60px rgba(0,0,0,0.4);
+        }
+
+        .modal h3 {
+            margin: 0 0 12px 0;
+            font-size: 1.25rem;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 1fr 200px;
+            gap: 18px;
+            margin-top: 12px;
+        }
+
+        .modal-desc {
+            color: #444;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .modal-meta {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        .modal-meta strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .modal-metadata {
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            max-height: 220px;
+            overflow: auto;
+        }
+
+        .modal-metadata h6 {
+            margin: 4px 0 8px;
+        }
+
+        .modal-metadata pre {
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            margin: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="breadcrumb">
+            <a href="/">Dashboard</a>
+            <span class="breadcrumb-sep">›</span>
+            <a href="/sessions">Sessioni</a>
+            <span class="breadcrumb-sep">›</span>
+            <span>Task Sessione</span>
+        </div>
+
+        <div class="header">
+            <h1><i class="fas fa-tasks"></i> Task Sessione</h1>
+            <p>Tutte le task associate a questa sessione</p>
+        </div>
+
+        <div class="card">
+            <div class="session-info">
+                <div class="info-box">
+                    <div class="info-label">ID Sessione</div>
+                    <div class="info-value" id="sessionId">-</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Lifecycle</div>
+                    <div class="info-value" id="sessionLifecycle">-</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Messaggi</div>
+                    <div class="info-value" id="messageCount">-</div>
+                </div>
+                <div class="info-box">
+                    <div class="info-label">Task Totali</div>
+                    <div class="info-value" id="taskCount">-</div>
+                </div>
+            </div>
+
+            <button class="btn-back" onclick="history.back()">
+                <i class="fas fa-arrow-left"></i> Indietro
+            </button>
+
+            <table id="tasksTable">
+                <thead>
+                    <tr>
+                        <th style="width: 60px;">ID</th>
+                        <th style="width: 200px;">Title</th>
+                        <th>Description</th>
+                        <th style="width: 150px;">Assigned To</th>
+                        <th style="width: 150px;">Created At</th>
+                        <th style="width: 100px;">Status</th>
+                        <th style="width: 100px;">Completed</th>
+                    </tr>
+                </thead>
+                <tbody id="tasksTableBody">
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>Caricamento task...</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            <p><i class="fas fa-info-circle"></i> Clicca sulla descrizione per visualizzare i dettagli completi</p>
+        </div>
+    </div>
+
+    <!-- Modal for task details -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal">
+            <h3 id="modalTitle"></h3>
+            <div class="modal-grid">
+                <div>
+                    <p class="modal-desc" id="modalDesc"></p>
+                    <div class="modal-meta">
+                        <strong>Assegnato a:</strong>
+                        <span id="modalAssigned">-</span>
+                    </div>
+                    <div class="modal-meta">
+                        <strong>Creato il:</strong>
+                        <span id="modalCreatedAt">-</span>
+                    </div>
+                </div>
+                <div class="modal-metadata">
+                    <h6>Metadata</h6>
+                    <pre id="modalMetadata">-</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Populate session info from template context
+        document.addEventListener('DOMContentLoaded', () => {
+            const sessionId = "{{ session.session_id }}";
+            const lifecycle = "{{ session.current_lifecycle }}";
+            const msgCount = {{ session.message_count }};
+            const taskCount = {{ session.task_count }};
+
+            document.getElementById('sessionId').textContent = sessionId;
+            document.getElementById('sessionLifecycle').textContent = lifecycle;
+            document.getElementById('messageCount').textContent = msgCount;
+            document.getElementById('taskCount').textContent = taskCount;
+
+            loadTasksFromContext();
+        });
+
+        // Load tasks from server response in template
+        function loadTasksFromContext() {
+            const tasksJson = `{{ tasks | tojson }}`;
+            try {
+                const tasks = JSON.parse(tasksJson);
+                renderTasks(tasks);
+            } catch (err) {
+                console.error('Error parsing tasks:', err);
+                document.querySelector('#tasksTableBody').innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state" style="color: #dc2626;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p>Errore nel caricamento</p>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderTasks(tasks) {
+            const tbody = document.querySelector('#tasksTableBody');
+            
+            if (tasks.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <p>Nessuna task per questa sessione</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            tasks.forEach(t => {
+                const row = document.createElement('tr');
+                const statusClass = t.completed ? 'status-closed' : 'status-open';
+                const statusText = t.completed ? 'Completata' : 'Aperta';
+
+                row.innerHTML = `
+                    <td>#${t.id}</td>
+                    <td><strong>${escapeHtml(t.title)}</strong></td>
+                    <td><div class="task-desc" data-id="${t.id}">${escapeHtml(t.description || '-')}</div></td>
+                    <td>${escapeHtml(t.assigned_to || '-')}</td>
+                    <td>${new Date(t.created_at).toLocaleString('it-IT')}</td>
+                    <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    <td>
+                        <div class="checkbox-wrapper">
+                            <input type="checkbox" data-id="${t.id}" ${t.completed ? 'checked' : ''} onchange="toggleTask(this)">
+                        </div>
+                    </td>
+                `;
+
+                if (t.completed) {
+                    row.classList.add('completed');
+                }
+
+                // Add click listener to description
+                const descNode = row.querySelector('.task-desc');
+                if (descNode) {
+                    descNode.addEventListener('click', () => showTaskModal(t));
+                }
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function showTaskModal(task) {
+            document.getElementById('modalTitle').textContent = task.title || 'Task';
+            document.getElementById('modalDesc').textContent = task.description || '-';
+            document.getElementById('modalAssigned').textContent = task.assigned_to || '-';
+            document.getElementById('modalCreatedAt').textContent = new Date(task.created_at).toLocaleString('it-IT');
+
+            try {
+                const metadata = task.metadata ? JSON.stringify(task.metadata, null, 2) : '-';
+                document.getElementById('modalMetadata').textContent = metadata;
+            } catch (err) {
+                document.getElementById('modalMetadata').textContent = '-';
+            }
+
+            document.getElementById('taskModal').classList.add('active');
+        }
+
+        function hideTaskModal() {
+            document.getElementById('taskModal').classList.remove('active');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('taskModal').addEventListener('click', (e) => {
+            if (e.target.id === 'taskModal') {
+                hideTaskModal();
+            }
+        });
+
+        // Close modal on ESC
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                hideTaskModal();
+            }
+        });
+
+        async function toggleTask(checkbox) {
+            const id = checkbox.dataset.id;
+            const completed = checkbox.checked;
+
+            try {
+                const updateResp = await fetch(`/api/tasks/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed })
+                });
+
+                if (!updateResp.ok) {
+                    throw new Error('Update failed');
+                }
+
+                // Update row styling
+                const row = checkbox.closest('tr');
+                row.classList.toggle('completed', completed);
+
+                // Update status badge
+                const statusBadge = row.querySelector('.status-badge');
+                if (completed) {
+                    statusBadge.textContent = 'Completata';
+                    statusBadge.className = 'status-badge status-closed';
+                } else {
+                    statusBadge.textContent = 'Aperta';
+                    statusBadge.className = 'status-badge status-open';
+                }
+            } catch (error) {
+                console.error('Errore:', error);
+                checkbox.checked = !completed;
+                alert('Errore aggiornamento task');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

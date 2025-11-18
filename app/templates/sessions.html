@@ -438,6 +438,9 @@
                         </div>
                         <div>
                             <button class="add-task-button" onclick="openTaskModal('{{ session.session_id }}')">+ Aggiungi Task</button>
+                            <button class="view-button" onclick="viewSessionTasks('{{ session.session_id }}')">
+                                Visualizza Task
+                            </button>
                             <button class="view-button" onclick="viewConversation('{{ session.session_id }}')">
                                 Visualizza Conversazione
                             </button>
@@ -492,6 +495,11 @@
         // Funzione per visualizzare la conversazione
         function viewConversation(sessionId) {
             window.location.href = `/session/${sessionId}/messages`;
+        }
+
+        // Funzione per visualizzare le task di una sessione
+        function viewSessionTasks(sessionId) {
+            window.location.href = `/session/${sessionId}/tasks`;
         }
 
         // Apri modal per creare task
