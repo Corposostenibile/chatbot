@@ -511,26 +511,35 @@
         }
 
         function showHumanTaskOpenUI(taskInfo) {
-            // Show blocking overlay to stop further messages until task is completed
+            // Show a small, non-blocking banner letting the operator know a human task is open.
+            // Do not disable inputs; keep the session interactive for testing.
             const placeholder = document.getElementById('finishedOverlayPlaceholder');
             removeConversationFinishedUI();
-            const overlay = document.createElement('div');
-            overlay.className = 'finished-overlay';
-            overlay.id = 'humanTaskOverlay';
-            overlay.innerHTML = `
-                <div class="finished-card">
-                    <div class="finished-emoji">🛑</div>
-                    <div class="finished-text">Intervento umano necessario</div>
-                    <div class="finished-sub">La conversazione è stata bloccata perché è richiesta assistenza umana: <strong>${escapeHtml(taskInfo.title || '')}</strong></div>
-                    <div style="margin-top:10px"><button class="btn-finish" id="viewTasksBtn">Apri Tasks</button></div>
+            const banner = document.createElement('div');
+            banner.className = 'human-task-banner';
+            banner.id = 'humanTaskBanner';
+            banner.innerHTML = `
+                <div class="banner-left">🛑</div>
+                <div class="banner-content">
+                    <div class="banner-title">Intervento umano necessario</div>
+                    <div class="banner-sub">${escapeHtml(taskInfo.title || '')}</div>
                 </div>
+                <div style="margin-left:auto"><button class="btn" id="bannerViewTasks">Apri Tasks</button></div>
             `;
-            placeholder.appendChild(overlay);
-            messageInput.disabled = true;
-            sendBtn.disabled = true;
+            placeholder.appendChild(banner);
 
-            document.getElementById('viewTasksBtn').addEventListener('click', () => {
+            document.getElementById('bannerViewTasks').addEventListener('click', () => {
                 window.open('/tasks', '_blank');
+            });
+
+            // show dismiss button
+            const dismissBtn = document.createElement('button');
+            dismissBtn.style.marginLeft = '8px';
+            dismissBtn.className = 'btn btn-secondary';
+            dismissBtn.textContent = 'Chiudi';
+            banner.appendChild(dismissBtn);
+            dismissBtn.addEventListener('click', () => {
+                banner.remove();
             });
         }
     </script>
