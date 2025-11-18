@@ -210,6 +210,133 @@
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
         }
 
+        .add-task-button {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 8px;
+        }
+
+        .add-task-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .task-badge {
+            display: inline-block;
+            background: #fef3c7;
+            color: #92400e;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .modal-btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #d1d5db;
+        }
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
@@ -307,10 +434,14 @@
                     <div class="session-stats">
                         <div class="message-count">
                             💬 {{ session.message_count }} messaggi
+                            <span class="task-badge" data-session-id="{{ session.session_id }}">📋 0 task</span>
                         </div>
-                        <button class="view-button" onclick="viewConversation('{{ session.session_id }}')">
-                            Visualizza Conversazione
-                        </button>
+                        <div>
+                            <button class="add-task-button" onclick="openTaskModal('{{ session.session_id }}')">+ Aggiungi Task</button>
+                            <button class="view-button" onclick="viewConversation('{{ session.session_id }}')">
+                                Visualizza Conversazione
+                            </button>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -329,11 +460,109 @@
         </div>
     </div>
 
+    <!-- Task Creation Modal -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal-content">
+            <div class="modal-header">Crea Nuova Task</div>
+            <form id="taskForm">
+                <input type="hidden" id="modalSessionId">
+                <div class="form-group">
+                    <label class="form-label">Titolo *</label>
+                    <input type="text" class="form-input" id="taskTitle" placeholder="Titolo della task" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Descrizione *</label>
+                    <textarea class="form-textarea" id="taskDesc" placeholder="Descrizione della task" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assegnato a (opzionale)</label>
+                    <input type="email" class="form-input" id="taskAssigned" placeholder="email@example.com">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary" onclick="closeTaskModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Crea Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
+        let currentSessionForTask = null;
+
         // Funzione per visualizzare la conversazione
         function viewConversation(sessionId) {
             window.location.href = `/session/${sessionId}/messages`;
         }
+
+        // Apri modal per creare task
+        function openTaskModal(sessionId) {
+            currentSessionForTask = sessionId;
+            document.getElementById('modalSessionId').value = sessionId;
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDesc').value = '';
+            document.getElementById('taskAssigned').value = '';
+            document.getElementById('taskModal').classList.add('active');
+        }
+
+        // Chiudi modal
+        function closeTaskModal() {
+            document.getElementById('taskModal').classList.remove('active');
+        }
+
+        // Chiudi modal cliccando fuori
+        document.getElementById('taskModal').addEventListener('click', (e) => {
+            if (e.target.id === 'taskModal') {
+                closeTaskModal();
+            }
+        });
+
+        // Invia form per creare task
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const sessionId = document.getElementById('modalSessionId').value;
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDesc').value;
+            const assignedTo = document.getElementById('taskAssigned').value;
+
+            try {
+                const resp = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title,
+                        description,
+                        session_id: sessionId,
+                        assigned_to: assignedTo || null
+                    })
+                });
+                if (!resp.ok) throw new Error('Failed to create task');
+                closeTaskModal();
+                await loadTaskCounts();
+            } catch (err) {
+                console.error(err);
+                alert('Errore nella creazione della task');
+            }
+        });
+
+        // Carica il conteggio delle task per ogni sessione
+        async function loadTaskCounts() {
+            try {
+                const badges = document.querySelectorAll('.task-badge');
+                for (const badge of badges) {
+                    const sessionId = badge.dataset.sessionId;
+                    const resp = await fetch(`/api/tasks?session_id=${sessionId}`);
+                    if (!resp.ok) continue;
+                    const tasks = await resp.json();
+                    const count = tasks.length;
+                    badge.textContent = `📋 ${count} task`;
+                }
+            } catch (err) {
+                console.error('Error loading task counts:', err);
+            }
+        }
+
+        // Carica task counts on page load
+        window.addEventListener('load', loadTaskCounts);
 
         // Funzionalità di ricerca
         document.getElementById('searchInput').addEventListener('input', filterSessions);
@@ -361,7 +590,7 @@
         // Auto-refresh ogni 30 secondi
         setInterval(() => {
             if (document.visibilityState === 'visible') {
-                location.reload();
+                loadTaskCounts();
             }
         }, 30000);
     </script>

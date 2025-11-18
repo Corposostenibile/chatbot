@@ -222,6 +222,139 @@
             color: #374151;
         }
 
+        .task-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .task-link-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .task-link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .task-info {
+            background: #f0fdf4;
+            border-left: 4px solid #10b981;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+            color: #166534;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-family: inherit;
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-input:focus, .form-textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        .modal-btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .modal-btn-secondary:hover {
+            background: #d1d5db;
+        }
+
         .footer {
             background: #f8fafc;
             padding: 20px 30px;
@@ -301,6 +434,15 @@
                 </div>
             </div>
 
+            <div class="task-info">
+                <strong>📋 Task Associate:</strong> <span id="taskCount">Caricamento...</span>
+            </div>
+
+            <div class="task-actions">
+                <button class="task-link-btn" onclick="openTaskModal()">+ Aggiungi Task</button>
+                <a href="/tasks" class="task-link-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Visualizza Tutte le Task</a>
+            </div>
+
             <div class="conversation-container">
                 {% if messages %}
                     {% for message in messages %}
@@ -335,14 +477,97 @@
         </div>
     </div>
 
+    <!-- Task Creation Modal -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal-content">
+            <div class="modal-header">Crea Nuova Task</div>
+            <form id="taskForm">
+                <div class="form-group">
+                    <label class="form-label">Titolo *</label>
+                    <input type="text" class="form-input" id="taskTitle" placeholder="Titolo della task" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Descrizione *</label>
+                    <textarea class="form-textarea" id="taskDesc" placeholder="Descrizione della task" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assegnato a (opzionale)</label>
+                    <input type="email" class="form-input" id="taskAssigned" placeholder="email@example.com">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary" onclick="closeTaskModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Crea Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // Auto-scroll all'ultimo messaggio
-        window.addEventListener('load', () => {
-            const lastMessage = document.querySelector('.message:last-child');
-            if (lastMessage) {
-                lastMessage.scrollIntoView({ behavior: 'smooth' });
+        const sessionId = '{{ session.session_id }}';
+
+        // Apri modal per creare task
+        function openTaskModal() {
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDesc').value = '';
+            document.getElementById('taskAssigned').value = '';
+            document.getElementById('taskModal').classList.add('active');
+        }
+
+        // Chiudi modal
+        function closeTaskModal() {
+            document.getElementById('taskModal').classList.remove('active');
+        }
+
+        // Chiudi modal cliccando fuori
+        document.getElementById('taskModal').addEventListener('click', (e) => {
+            if (e.target.id === 'taskModal') {
+                closeTaskModal();
             }
         });
+
+        // Invia form per creare task
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDesc').value;
+            const assignedTo = document.getElementById('taskAssigned').value;
+
+            try {
+                const resp = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title,
+                        description,
+                        session_id: sessionId,
+                        assigned_to: assignedTo || null
+                    })
+                });
+                if (!resp.ok) throw new Error('Failed to create task');
+                closeTaskModal();
+                await loadTaskCount();
+            } catch (err) {
+                console.error(err);
+                alert('Errore nella creazione della task');
+            }
+        });
+
+        // Carica il conteggio delle task per questa sessione
+        async function loadTaskCount() {
+            try {
+                const resp = await fetch(`/api/tasks?session_id=${sessionId}`);
+                if (!resp.ok) return;
+                const tasks = await resp.json();
+                const count = tasks.length;
+                document.getElementById('taskCount').textContent = count > 0 ? `${count} task trovate` : 'Nessuna task';
+            } catch (err) {
+                console.error('Error loading task count:', err);
+                document.getElementById('taskCount').textContent = 'Errore caricamento';
+            }
+        }
+
+        // Carica task count on page load
+        window.addEventListener('load', loadTaskCount);
 
         // Auto-refresh ogni 60 secondi se la pagina è visibile
         setInterval(() => {
