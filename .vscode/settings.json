@@ -1,54 +1,143 @@
 {
-    // Editor Settings
+    // ===== Python Language Server =====
+    "python.languageServer": "None",
+    "basedpyright.disableLanguageServices": false,
+    "basedpyright.disableOrganizeImports": false,
+    // ===== Analisi del codice e Type Checking (MODALITÀ PERMISSIVA) =====
+    "basedpyright.analysis.typeCheckingMode": "off",
+    "basedpyright.analysis.autoImportCompletions": true,
+    "basedpyright.analysis.autoSearchPaths": true,
+    "basedpyright.analysis.diagnosticMode": "openFilesOnly",
+    "basedpyright.analysis.extraPaths": [
+        "${workspaceFolder}/app"
+    ],
+    // Disabilita report di errori comuni ma non critici
+    "basedpyright.analysis.diagnosticSeverityOverrides": {
+        "reportGeneralTypeIssues": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalSubscript": "none",
+        "reportOptionalCall": "none",
+        "reportOptionalIterable": "none",
+        "reportOptionalContextManager": "none",
+        "reportOptionalOperand": "none",
+        "reportUnboundVariable": "warning",
+        "reportUndefinedVariable": "error",
+        "reportMissingImports": "warning",
+        "reportMissingTypeStubs": "none",
+        "reportUnusedImport": "none",
+        "reportUnusedClass": "none",
+        "reportUnusedFunction": "none",
+        "reportUnusedVariable": "none",
+        "reportDuplicateImport": "none",
+        "reportIncompatibleMethodOverride": "none",
+        "reportIncompatibleVariableOverride": "none",
+        "reportInconsistentConstructor": "none",
+        "reportUnknownParameterType": "none",
+        "reportUnknownArgumentType": "none",
+        "reportUnknownLambdaType": "none",
+        "reportUnknownVariableType": "none",
+        "reportUnknownMemberType": "none",
+        "reportMissingParameterType": "none",
+        "reportMissingTypeArgument": "none",
+        "reportInvalidTypeVarUse": "none",
+        "reportCallInDefaultInitializer": "none",
+        "reportUnnecessaryIsInstance": "none",
+        "reportUnnecessaryCast": "none",
+        "reportUnnecessaryComparison": "none",
+        "reportAssertAlwaysTrue": "none",
+        "reportSelfClsParameterName": "none",
+        "reportImplicitStringConcatenation": "none",
+        "reportUnusedCoroutine": "warning",
+        "reportReturnType": "none",
+        "reportArgumentType": "none",
+        "reportAssignmentType": "none",
+        "reportAttributeAccessIssue": "none"
+    },
+    // ===== Evidenziazione Semantica (IMPORTANTE per funzioni/oggetti) =====
     "editor.semanticHighlighting.enabled": true,
-    "editor.bracketPairColorization.enabled": true,
-    "editor.guides.bracketPairs": "active",
-    "editor.matchBrackets": "always",
-    // Python Specific Settings
-    "python.analysis.typeCheckingMode": "basic",
-    "python.analysis.autoImportCompletions": true,
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportUnusedVariable": "warning",
-        "reportUnusedImport": "warning"
+    "editor.semanticTokenColorCustomizations": {
+        "enabled": true,
+        "rules": {
+            "function": {
+                "foreground": "#DCDCAA",
+                "bold": true
+            },
+            "method": {
+                "foreground": "#DCDCAA"
+            },
+            "class": {
+                "foreground": "#4EC9B0",
+                "bold": true
+            },
+            "variable": {
+                "foreground": "#9CDCFE"
+            },
+            "parameter": {
+                "foreground": "#9CDCFE"
+            }
+        }
     },
-    // Language Server Features
-    "python.languageServer": "Default",
-    // Go to Definition & Hover
-    "editor.gotoLocation.multipleDefinitions": "goto",
-    "editor.gotoLocation.multipleDeclarations": "goto",
-    "editor.gotoLocation.multipleImplementations": "goto",
-    "editor.hover.enabled": true,
-    "editor.hover.delay": 300,
-    "editor.hover.sticky": true,
-    // IntelliSense
-    "editor.quickSuggestions": {
-        "other": true,
-        "comments": false,
-        "strings": true
+    // ===== Interprete Python =====
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    // ===== IntelliSense e Suggerimenti =====
+    "basedpyright.analysis.completeFunctionParens": true,
+    "basedpyright.analysis.inlayHints.functionReturnTypes": false,
+    "basedpyright.analysis.inlayHints.variableTypes": false,
+    "basedpyright.analysis.inlayHints.callArgumentNames": false,
+    // ===== Formattazione =====
+    "python.formatting.provider": "none",
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
     },
-    "editor.suggestSelection": "first",
-    "editor.parameterHints.enabled": true,
-    "editor.suggest.showMethods": true,
-    "editor.suggest.showFunctions": true,
-    "editor.suggest.showVariables": true,
-    "editor.suggest.showClasses": true,
-    "editor.suggest.showModules": true,
-    // Inlay Hints (for better code understanding)
-    "editor.inlayHints.enabled": "on",
-    "python.analysis.inlayHints.functionReturnTypes": true,
-    "python.analysis.inlayHints.variableTypes": true,
-    "python.analysis.inlayHints.pytestParameters": true,
-    // Additional Editor Enhancements
-    "editor.cursorBlinking": "smooth",
-    "editor.cursorSmoothCaretAnimation": "on",
-    "editor.smoothScrolling": true,
-    "editor.fontLigatures": true,
-    // File Associations
+    // ===== Linting =====
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=120",
+        "--ignore=E203,W503"
+    ],
+    // ===== Testing =====
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    // ===== Editor Generale =====
+    "editor.rulers": [
+        88,
+        120
+    ],
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    // ===== File Associations =====
     "files.associations": {
-        "*.py": "python",
         "*.html": "html",
-        "*.css": "css",
-        "*.js": "javascript",
-        "*.json": "jsonc"
+        "*.jinja": "jinja-html",
+        "*.jinja2": "jinja-html"
+    },
+    // ===== Esclusioni =====
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.pytest_cache": true,
+        "**/.coverage": true
+    },
+    // ===== HTML/Jinja =====
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features",
+        "editor.formatOnSave": true
+    },
+    // ===== JavaScript =====
+    "[javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features",
+        "editor.formatOnSave": true
     }
 }
