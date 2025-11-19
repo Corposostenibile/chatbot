@@ -1,139 +1,85 @@
-# 🤖 Linee Guida per la Codifica AI del Chatbot
+# Copilot Instructions for `chatbot`
 
-## Panoramica dell'Architettura
-Questo progetto espone un'API basata su FastAPI per la gestione di conversazioni con potenziali clienti di Corposostenibile nel settore nutrizione/psicologia. L'app espone un endpoint che viene chiamato da respond.io tramite webhook e utilizza Google Gemini AI per automatizzare le risposte e transitare i lead attraverso le fasi del ciclo di vita: `NUOVA_LEAD` → `CONTRASSEGNATO` → `IN_TARGET` → `LINK_DA_INVIARE` → `LINK_INVIATO`.
+## Architettura e responsabilità
+- Tratta `app/main.py` come entrypoint FastAPI e mantieni lì solo configurazione app, CORS, lifecycle e wiring dei router.
+- Aggiungi nuovi endpoint in `app/routes.py` usando il `APIRouter` esistente e riutilizza `get_db`/`get_db_session` per l'accesso al database.
+- Mantieni i modelli Pydantic in `app/models/api_models.py`, i modelli SQLAlchemy in `app/models/database_models.py` e la logica di dominio del lifecycle in `app/models/lifecycle.py`.
+- Estendi la logica conversazionale solo tramite `app/services/unified_agent.py` e `app/data/lifecycle_config.py`, senza richiamare direttamente i client AI nei router.
+- Usa `SystemPromptService` e `AIModelService` per gestire system prompt e modelli AI invece di accedere direttamente alle tabelle `system_prompts` o `ai_models`.
 
-Le sessioni e le conversazioni sono persistite in un database PostgreSQL per garantire la continuità tra riavvii dell'applicazione.
+## Database e async
+- Usa sempre `async for db in get_db():` o `get_db_session()` per ottenere una `AsyncSession` e chiuderla correttamente.
+- Scrivi query con l'API 2.0 di SQLAlchemy (`select(...)`, `.scalars().all()`, `.scalar_one_or_none()`), come negli esempi in `app/routes.py` e `app/services/*`.
+- Quando modifichi `app/models/database_models.py`, crea o aggiorna una migration in `alembic/versions` e lascia che `scripts/local.sh local-db-init`/`local-db-reset` applichino le migrazioni.
+- Mantieni il campo `current_lifecycle` di `SessionModel` sempre allineato con l'enum `LifecycleStage` e aggiorna `SessionModel.is_conversation_finished` solo tramite `_update_session_lifecycle`.
 
-**Componenti Chiave:**
-- `app/main.py`: Endpoint FastAPI (`/chat`, `/health`, `/status`, `/session/{id}`)
-- `app/services/unified_agent.py`: Gestore conversazioni alimentato da AI con decisioni sul ciclo di vita
-- `app/services/system_prompt_service.py`: Servizio per gestione system prompts nel database
-- `app/routes.py`: Route per dashboard, monitoraggio e gestione prompts
-- `app/models/lifecycle.py`: Fasi del ciclo di vita e modelli di transizione
-- `app/models/database_models.py`: Modelli SQLAlchemy per sessioni, messaggi e system prompts
-- `app/models/api_models.py`: Modelli Pydantic per API requests/responses
-- `app/database.py`: Configurazione connessione database
-- `app/data/lifecycle_config.py`: Script specifici per fase e trigger di transizione
-- `app/data/snippets.py`: Gestione snippets conversazionali
-- `app/templates/`: Template HTML per dashboard e interfacce web
-- `scripts/local.sh`: Script per sviluppo locale senza Docker
-- `scripts/ssl.sh`: Script dedicato per configurazione SSL
-- `alembic/`: Migrazioni database (sessions, messages, system_prompts)
-- `context7_mcp_integration.md`: Integrazione MCP per documentazione dinamica
+## Unified agent e lifecycle
+- Non istanziare mai manualmente `UnifiedAgent`; riutilizza l'istanza globale `unified_agent` da `app/services/unified_agent.py`.
+- Quando aggiungi nuove feature conversazionali, aggiorna `LIFECYCLE_SCRIPTS` in `app/data/lifecycle_config.py` (`script`, `objective`, `transition_indicators`, `available_snippets`) invece di hardcodare testo nei router.
+- Rispetta il contratto di `LifecycleResponse`: mantieni il formato di `messages`, `debug_logs`, `full_logs`, `requires_human`, `human_task` come in `unified_agent.chat`.
+- Per gestire errori AI usa le eccezioni `AIError`, `ParsingError`, `ChatbotError` e mappale in `HTTPException` con codici coerenti come in `/chat`.
+- Quando introduci nuove decisioni di lifecycle, usa il campo `confidence` e il threshold `>= 0.7` come nel metodo `_handle_lifecycle_transition`.
 
-## Flusso di Sviluppo
-- **Installazione dipendenze**: `./scripts/local.sh local-install` (installa dipendenze Poetry)
-- **Aggiornamento dipendenze**: `./scripts/local.sh dependencies-update` (aggiorna dipendenze Poetry)
-- **Verifica dipendenze**: `./scripts/local.sh dependencies-check` (controlla stato dipendenze)
-- **Avvio ambiente sviluppo**: `./scripts/local.sh local-run` (avvia app in modalità development)
-- **Status ambiente**: `./scripts/local.sh local-status` (mostra stato completo)
-- **Setup iniziale**: `./scripts/local.sh local-setup` (configurazione completa ambiente)
-- **Database locale**: `./scripts/local.sh local-db-start` (avvia PostgreSQL locale)
-- **Testing**: `./scripts/local.sh local-test` (esegue suite di test)
-- **Linting**: `./scripts/local.sh local-lint` (controllo qualità codice)
+## Workflow di sviluppo
+- Per lo sviluppo locale, usa sempre `./scripts/local.sh` (es. `local-setup`, `local-db-start`, `local-db-init`, `local-test`, `local-lint`, `local-format`) invece di invocare direttamente Poetry o Alembic.
+- Lascia che `scripts/local.sh init_db` gestisca `.env.local`, `DATABASE_URL` e l'aggiornamento di `alembic.ini` invece di modificarli a mano.
 
-## Script local.sh - Sviluppo Locale
+## Dashboard, templates e integrazioni
+- Per nuove viste HTML riutilizza il router esistente in `app/routes.py` con `Jinja2Templates` e i template in `app/templates/*.html`.
+- Mantieni la coerenza dei dashboard: usa query aggregate sui modelli (`SessionModel`, `MessageModel`, `HumanTaskModel`, `SystemPromptModel`) e passa al template solo dizionari serializzabili.
+- Quando estendi gli endpoint di gestione system prompts o human tasks, passa sempre tramite `SystemPromptService` e `MessageReviewService` invece di manipolare direttamente le sessioni.
+- Se aggiungi nuovi comandi al wrapper `/api/execute/{command}`, aggiorna la mappa `available_commands` in `app/routes.py` per riflettere esattamente ciò che lo script `./server` supporta.
 
-Lo script `scripts/local.sh` è specializzato per lo sviluppo locale con Docker solo per la containerizzazione del Database Postgres
+## Flusso end-to-end e funzionalità principali
+- 1) La richiesta `/chat` è il punto d'ingresso per la conversazione: `app.routes.chat_endpoint` valida la sessione e poi chiama `unified_agent.chat`.
+- 2) `UnifiedAgent.chat`:
+	- carica o crea la `SessionModel` (DB);
+	- blocca il flusso se esiste una `HumanTask` aperta per la sessione (la UI dovrebbe mostrare la gestione manuale);
+	- se `message_count == 0`, invia un auto-response e imposta `CONTRASSEGNATO`; quindi chiama l'AI;
+	- se la sessione è in `is_batch_waiting`, accoda nuovi messaggi e ritorna risposta vuota; al termine del timeout, genera un unico prompt aggregato e chiama l'AI;
+	- costruisce il `unified_prompt` usando `LIFECYCLE_SCRIPTS` (dal file `app/data/lifecycle_config.py`) e gli `available_snippets` per la fase corrente;
+	- chiama il client AI (Google via `datapizza`) con il prompt; la risposta attesa è JSON conforme al `LifecycleResponse` (vedi `app/models/lifecycle.py`);
+	- elabora la risposta: normalizza `messages`, valuta `should_change_lifecycle` e la `confidence` (threshold >= 0.7), aggiorna la sessione se necessario, e salva messaggi nel DB o crea `HumanTask` se `requires_human`.
+- 3) `SystemPromptService` fornisce il prompt di sistema attivo al momento della chiamata, `AIModelService` restituisce il modello attivo per la chiamata AI.
+- 4) I `LIFECYCLE_SCRIPTS` contengono `script`, `objective`, `available_snippets`, e `transition_indicators` — modificare questi file per cambiare il comportamento conversazionale.
+- 5) `log_capture` raccoglie i log di una singola sessione per debug e viene restituito come `debug_logs`/`full_logs` nella `LifecycleResponse`.
+	- `SystemPromptService.initialize_default_prompt()` viene chiamato durante lo startup (`app/main.py`) per garantire che esista un prompt attivo.
 
-### 🐍 Ambiente di Sviluppo
-- `local-setup`: Configurazione iniziale completa (venv + deps + db)
-- `local-install`: Installa dipendenze Poetry in ambiente virtuale
-- `local-clean`: Pulisce completamente l'ambiente locale
-- `local-status`: Mostra stato completo dell'ambiente di sviluppo
+## Vincoli e gotcha importanti
+- Non avviare mai il server di produzione né eseguire `./server`, `uvicorn app.main:app` o comandi analoghi da un agente AI.
+- Preserva l'uso di `loguru` e di `app.logger_config.log_capture` per costruire `debug_logs`/`full_logs` invece di introdurre sistemi di logging paralleli.
+- Non salvare direttamente credenziali o API key nel codice sorgente; lascia che `scripts/local.sh` e i file `.env`/`.env.local` gestiscano la configurazione.
+- Mantieni i messaggi, i commenti e le stringhe utente in italiano per coerenza con il resto del progetto.
 
-### 🗄️ Gestione Database Locale
-- `local-db-start`: Avvia container PostgreSQL per sviluppo
-- `local-db-stop`: Ferma container PostgreSQL
-- `local-db-init`: Inizializza database locale con migrazioni
+## Errori comuni e "gotchas"
+- Evita il lazy-loading degli oggetti ORM (es. `session.messages`) fuori dal contesto `async for db in get_db()`; usare query esplicite per evitare `greenlet_spawn`.
+- L'AI può restituire JSON malformato; `UnifiedAgent._parse_ai_response` contiene tentativi di riparazione (es. escape delle virgolette interne) — mantieni questo comportamento quando estendi il parsing.
+- Non cambiare `current_lifecycle` direttamente su `SessionModel` da un router: usa `_update_session_lifecycle` per mantenere la coerenza dello stato e la `is_conversation_finished` quando si raggiunge `LINK_INVIATO`.
+- Quando scrivi migrazioni Alembic, ricordati che gli enum (LifecycleStage) sono gestiti a DB; lo script `scripts/local.sh local-db-reset` cancella e ricrea le tabelle e le enums.
+- Il comportamento di batch wait è testato in `tests/test_batch_wait.py`; se cambi il timeout, aggiorna i test o il comportamento della UI.
+- Non inserire API key o credenziali nel codice sorgente; `scripts/local.sh` e `.env.local` gestiscono l'inserimento sicuro.
 
-### 🚀 Esecuzione e Testing
-- `local-run`: Avvia l'applicazione in modalità development con auto-reload
-- `local-test`: Esegue suite di test completa
-- `local-lint`: Esegue linting con flake8, black, isort
-- `local-format`: Formatta automaticamente il codice
+## Esempio di risposta AI attesa (formato JSON)
+L'agente si aspetta sempre un JSON conforme per semplificare il parsing e le transizioni. Esempio minimale:
 
-### ⚙️ Configurazione
-Crea automaticamente `.env.local` con configurazioni per sviluppo:
-- Database: PostgreSQL locale o SQLite
-- Debug: abilitato
-- Port: 8082 (configurabile)
-- Log Level: DEBUG
-- Google AI API Key precaricata
-
-### 📦 Dipendenze
-- Gestione automatica ambiente virtuale Python 3.11+
-- Installazione Poetry se non presente
-- Tool di sviluppo: pytest, flake8, black, isort, mypy
-
-## System Prompts Service
-
-### Panoramica
-Il `SystemPromptService` gestisce i system prompts nel database, permettendo la modifica dinamica del comportamento dell'AI senza riavviare l'applicazione.
-
-### Funzionalità Principali
-- **Gestione CRUD**: Creazione, lettura, aggiornamento e eliminazione prompts
-- **Prompt Attivo**: Un solo prompt può essere attivo alla volta
-- **Versioning**: Supporto per versioni multiple dei prompts
-- **Inizializzazione Automatica**: Setup automatico del prompt di default
-
-### Metodi Chiave
-- `get_active_prompt()`: Recupera il prompt attualmente attivo
-- `get_all_prompts()`: Lista tutti i prompts nel database
-- `create_prompt(name, content, version, description)`: Crea nuovo prompt
-- `update_prompt(prompt_id, **kwargs)`: Aggiorna prompt esistente
-- `set_active_prompt(prompt_id)`: Attiva un prompt specifico
-- `delete_prompt(prompt_id)`: Elimina prompt dal database
-- `initialize_default_prompt()`: Setup prompt di default se non esistente
-
-### Database Schema
-```sql
-CREATE TABLE system_prompts (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR UNIQUE NOT NULL,
-    content TEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT FALSE,
-    version VARCHAR NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
-);
+```json
+{
+	"messages": [
+		{"text": "Ciao! Posso aiutarti oggi?", "delay_ms": 0}
+	],
+	"should_change_lifecycle": true,
+	"new_lifecycle": "IN_TARGET",
+	"reasoning": "L'utente ha mostrato interesse a proseguire",
+	"confidence": 0.85,
+	"requires_human": false
+}
 ```
 
-### API Endpoints
-- `GET /system-prompts`: Lista tutti i prompts
-- `GET /system-prompts/{id}`: Dettagli prompt specifico
-- `POST /system-prompts`: Crea nuovo prompt
-- `PUT /system-prompts/{id}`: Aggiorna prompt
-- `DELETE /system-prompts/{id}`: Elimina prompt
-- `POST /system-prompts/{id}/activate`: Attiva prompt specifico
+Se `requires_human` è `true`, l'AI può restituire un `human_task`:
 
-## Dashboard e Interfacce Web
-
-### Template HTML Disponibili
-- `chat.html`: Interfaccia chat diretta con il bot
-- `conversation.html`: Visualizzazione dettagliata singola conversazione
-- `flow_visualization.html`: Mappa visiva del ciclo di vita conversazioni
-- `monitoring_dashboard.html`: Dashboard monitoraggio in tempo reale
-- `sessions.html`: Gestione e列表a sessioni attive
-- `system_prompts.html`: Interfaccia per gestire system prompts
-
-### Funzionalità Dashboard
-- **Monitoraggio Real-time**: Statistiche conversazioni e performance
-- **Gestione Sessioni**: Visualizzazione e controllo sessioni attive
-- **Visualizzazione Flussi**: Mappa dei transitioni tra lifecycle stages
-- **CRUD Prompts**: Interfaccia completa per gestire system prompts
-- **Analytics**: Metriche di conversione e engagement
-
-### Accesso Dashboard
-- **URL Base**: `http://localhost:8082` (dev) o dominio configurato (prod)
-- **Routes principali**:
-  - `/`: Dashboard principale
-  - `/sessions`: Gestione sessioni
-  - `/conversation/{id}`: Dettagli conversazione
-  - `/flow`: Visualizzazione flussi
-  - `/system-prompts`: Gestione prompts
-  - `/monitoring`: Dashboard monitoraggio
-
-# IMPORTANTE: Non avviare mai il server
+```json
+{
+	"requires_human": true,
+	"human_task": {"title":"Verifica dati paziente","description":"Controllare informazioni anagrafiche","assigned_to":"team@company.it","metadata":{}}
+}
+```

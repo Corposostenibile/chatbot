@@ -24,7 +24,18 @@ class SessionModel(Base):
     batch_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationship
-    messages: Mapped[List["MessageModel"]] = relationship("MessageModel", back_populates="session", order_by="MessageModel.timestamp")
+    # Order messages by timestamp then id to ensure deterministic ordering when timestamps are equal
+    messages: Mapped[List["MessageModel"]] = relationship(
+        "MessageModel",
+        back_populates="session",
+        order_by="(MessageModel.timestamp, MessageModel.id)"
+    )
+    # Lifecycle events history for the session
+    lifecycle_events: Mapped[List["LifecycleEventModel"]] = relationship(
+        "LifecycleEventModel",
+        back_populates="session",
+        order_by="LifecycleEventModel.created_at"
+    )
 
 
 class MessageModel(Base):
@@ -35,9 +46,29 @@ class MessageModel(Base):
     role: Mapped[str] = mapped_column(String)  # "user" or "assistant"
     message: Mapped[str] = mapped_column(Text)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    # Save lifecycle at the time the message was created (useful to track the agent's behavior)
+    lifecycle: Mapped[Optional[LifecycleStage]] = mapped_column(SQLEnum(LifecycleStage), nullable=True)
 
     # Relationship
     session: Mapped["SessionModel"] = relationship("SessionModel", back_populates="messages")
+    # Notes (review/ratings) associated with this message
+    notes: Mapped[List["MessageNoteModel"]] = relationship("MessageNoteModel", back_populates="message", order_by="MessageNoteModel.created_at.desc()")
+
+
+class MessageNoteModel(Base):
+    __tablename__ = "message_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    message_id: Mapped[int] = mapped_column(Integer, ForeignKey("messages.id"), index=True)
+    session_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sessions.id"), nullable=True)
+    rating: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    # Optional relationship back to the message
+    message: Mapped[Optional[MessageModel]] = relationship("MessageModel", back_populates="notes")
 
 
 class SystemPromptModel(Base):
@@ -82,3 +113,18 @@ class HumanTaskModel(Base):
 
     # Relationship
     session: Mapped[Optional["SessionModel"]] = relationship("SessionModel")
+
+
+class LifecycleEventModel(Base):
+    __tablename__ = "lifecycle_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(Integer, ForeignKey("sessions.id"), index=True)
+    previous_lifecycle: Mapped[Optional[LifecycleStage]] = mapped_column(SQLEnum(LifecycleStage), nullable=True)
+    new_lifecycle: Mapped[LifecycleStage] = mapped_column(SQLEnum(LifecycleStage), nullable=False)
+    trigger_message_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("messages.id"), nullable=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    # Relationship back to session and optionally message
+    session: Mapped[SessionModel] = relationship("SessionModel", back_populates="lifecycle_events")

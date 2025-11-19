@@ -69,3 +69,22 @@ class HumanTaskUpdate(BaseModel):
     """Modello per aggiornare una human task (es. completarla)"""
     completed: Optional[bool] = None
     status: Optional[str] = None
+
+
+class MessageNoteCreate(BaseModel):
+    """Model to create a message note/rating"""
+    message_id: int
+    rating: int
+    note: Optional[str] = None
+    created_by: Optional[str] = None
+
+
+class MessageNoteResponse(BaseModel):
+    """Model to return message note information"""
+    id: int
+    message_id: int
+    session_id: Optional[int]
+    rating: int
+    note: Optional[str]
+    created_by: Optional[str]
+    created_at: str

@@ -444,9 +444,14 @@
             </div>
 
             <div class="conversation-container">
-                {% if messages %}
-                    {% for message in messages %}
-                    <div class="message message-{{ message.role }}">
+                {% if entries %}
+                    {% for entry in entries %}
+                        {% if entry.type == 'lifecycle_event' %}
+                            <div style="margin: 10px 0; text-align:center;">
+                                <span class="lifecycle-badge lifecycle-{{ entry.new_lifecycle.lower() }}">Transizione: {{ entry.new_lifecycle.replace('_', ' ') }}</span>
+                            </div>
+                        {% elif entry.type == 'message' %}
+                            <div class="message message-{{ entry.role }}" {% if entry.role == 'assistant' %}data-message-id="{{ entry.id }}" data-lifecycle="{{ entry.lifecycle }}"{% endif %}>
                         <div class="message-avatar">
                             {% if message.role == 'user' %}
                                 👤
@@ -457,11 +462,16 @@
                         <div class="message-content">
                             <div class="message-header">
                                 <span class="message-role">{{ message.role.title() }}</span>
-                                <span class="message-time">{{ message.timestamp.strftime('%d/%m/%Y %H:%M:%S') }}</span>
+                                {% if message.role == 'assistant' %}
+                                    <span class="note-indicator" id="note-indicator-{{ message.id }}" style="margin-left:8px; font-size:0.85rem; color:#6b7280;">(caricamento...)</span>
+                                {% endif %}
+                                <span class="message-time">{{ message.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
                             </div>
-                            <div class="message-text">{{ message.message }}</div>
+                            <div class="message-text">{{ entry.message }}</div>
                         </div>
                     </div>
+                        {% endif %}
+                    {% endfor %}
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">
@@ -497,6 +507,39 @@
                 <div class="modal-actions">
                     <button type="button" class="modal-btn modal-btn-secondary" onclick="closeTaskModal()">Annulla</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Crea Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div class="modal-overlay" id="reviewModal">
+        <div class="modal-content">
+            <div class="modal-header">Valuta la risposta dell'AI</div>
+            <form id="reviewForm">
+                <input type="hidden" id="reviewMessageId">
+                <div class="form-group">
+                    <label class="form-label">Voto (1 = pessimo, 5 = eccellente)</label>
+                    <select id="reviewRating" class="form-input" required>
+                        <option value="" disabled selected>Seleziona voto</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Note</label>
+                    <textarea id="reviewNote" class="form-textarea" placeholder="Perché questo voto?" rows="4"></textarea>
+                </div>
+                <div id="existingNotes" style="margin-top:10px; max-height:160px; overflow:auto; border-radius:8px; background:#fafafa; padding:8px; border:1px solid #e5e7eb; display:none">
+                    <strong>Note esistenti:</strong>
+                    <div id="existingNotesList"></div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary" onclick="closeReviewModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Salva voto</button>
                 </div>
             </form>
         </div>
@@ -575,6 +618,101 @@
                 location.reload();
             }
         }, 60000);
+
+        // Review modal implementation
+        function openReviewModal(messageId) {
+            document.getElementById('reviewMessageId').value = messageId;
+            document.getElementById('reviewRating').value = '';
+            document.getElementById('reviewNote').value = '';
+            document.getElementById('existingNotesList').innerHTML = '';
+            document.getElementById('existingNotes').style.display = 'none';
+            document.getElementById('reviewModal').classList.add('active');
+            loadExistingNotes(messageId);
+        }
+
+        function closeReviewModal() {
+            document.getElementById('reviewModal').classList.remove('active');
+        }
+
+        // Catch click on assistant messages
+        document.addEventListener('click', function (e) {
+            // Find a parent element with data-message-id
+            let target = e.target;
+            while (target && !target.dataset?.messageId) {
+                target = target.parentElement;
+            }
+            if (target && target.dataset?.messageId) {
+                // Only assistant messages are annotated
+                openReviewModal(target.dataset.messageId);
+            }
+        });
+
+        // Submit review
+        document.getElementById('reviewForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const messageId = parseInt(document.getElementById('reviewMessageId').value, 10);
+            const rating = parseInt(document.getElementById('reviewRating').value, 10);
+            const note = document.getElementById('reviewNote').value.trim();
+
+            try {
+                const resp = await fetch('/api/message-notes', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ message_id: messageId, rating, note, created_by: 'operator' })
+                });
+                if (!resp.ok) throw new Error('Failed to save review');
+                closeReviewModal();
+                // Update count
+                await loadNoteCount();
+            } catch (err) {
+                console.error('Error saving review:', err);
+                alert('Errore nel salvataggio della review');
+            }
+        });
+
+        async function loadExistingNotes(messageId) {
+            try {
+                const resp = await fetch(`/api/messages/${messageId}/notes`);
+                if (!resp.ok) return;
+                const notes = await resp.json();
+                const list = document.getElementById('existingNotesList');
+                if (!notes || notes.length === 0) {
+                    list.innerHTML = '<em>Nessuna nota</em>';
+                    document.getElementById('existingNotes').style.display = 'block';
+                    return;
+                }
+                document.getElementById('existingNotes').style.display = 'block';
+                list.innerHTML = notes.map(n => `<div style="margin-bottom:6px"><strong>${n.rating}/5</strong> — ${n.note || '<em>senza commento</em>'} <br/><small>${n.created_at}</small></div>`).join('');
+            } catch (err) {
+                console.error('Error loading notes:', err);
+            }
+        }
+
+        // Load number of notes per assistant message
+        async function loadNoteCount() {
+            try {
+                // For performance, we could fetch note counts for all messages using session_id
+                const messageEls = document.querySelectorAll('[data-message-id]');
+                for (const el of messageEls) {
+                    const messageId = el.dataset.messageId;
+                    try {
+                        const resp = await fetch(`/api/message-notes?message_id=${messageId}`);
+                        if (!resp.ok) continue;
+                        const notes = await resp.json();
+                        const indicator = document.getElementById(`note-indicator-${messageId}`);
+                        if (!indicator) continue;
+                        indicator.textContent = notes.length ? `${notes.length} note` : '(0 note)';
+                    } catch (err) {
+                        console.error(err);
+                    }
+                }
+            } catch (err) {
+                console.error('Error loading note counts:', err);
+            }
+        }
+
+        // Kick off initial note count load
+        window.addEventListener('load', loadNoteCount);
     </script>
 </body>
 </html>

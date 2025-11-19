@@ -21,7 +21,7 @@ from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
 from app.config import settings
 from app.database import get_db
 from app.models.database_models import SessionModel, MessageModel
-from app.models.database_models import HumanTaskModel
+from app.models.database_models import HumanTaskModel, LifecycleEventModel
 from app.logger_config import log_capture
 import json as json_lib
 
@@ -147,6 +147,26 @@ class UnifiedAgent:
 
     async def _add_user_message_to_history(self, session: SessionModel, user_message: str, db: AsyncSession) -> None:
         """Aggiunge solo il messaggio utente alla cronologia senza risposta dell'assistente"""
+        # Deduplicate identical user messages sent within a short time window
+        try:
+            from sqlalchemy import select
+
+            result = await db.execute(
+                select(MessageModel)
+                .where(MessageModel.session_id == session.id)
+                .order_by(MessageModel.timestamp.desc())
+                .limit(1)
+            )
+            last_msg = result.scalar_one_or_none()
+            if last_msg and last_msg.role == "user":
+                # If exactly the same text and sent within 3 seconds, skip duplicate
+                delta = datetime.now(timezone.utc) - last_msg.timestamp
+                if last_msg.message.strip() == user_message.strip() and delta.total_seconds() < 3:
+                    return
+        except Exception:
+            # If anything fails, fallback to saving message
+            pass
+
         user_msg = MessageModel(
             session_id=session.id,
             role="user",
@@ -272,9 +292,31 @@ class UnifiedAgent:
             
         try:
             new_lifecycle = LifecycleStage[new_lifecycle_str.upper().replace(" ", "_")]
-            if new_lifecycle != session.current_lifecycle:
+
+            # Prevent accidental backtracking: only allow forward transitions (or same-level)
+            stage_order = {
+                LifecycleStage.NUOVA_LEAD: 0,
+                LifecycleStage.CONTRASSEGNATO: 1,
+                LifecycleStage.IN_TARGET: 2,
+                LifecycleStage.LINK_DA_INVIARE: 3,
+                LifecycleStage.LINK_INVIATO: 4,
+            }
+
+            current_idx = stage_order.get(session.current_lifecycle, 0)
+            new_idx = stage_order.get(new_lifecycle, 0)
+
+            if new_lifecycle == session.current_lifecycle:
+                return False
+
+            if new_idx >= current_idx:
+                # allow advancing forward or to the same/higher stage
                 await self._update_session_lifecycle(session, new_lifecycle, db)
                 return True
+            else:
+                # Prevent downgrade unless the AI strongly suggests it (could add a special override)
+                logger.warning(
+                    f"Ignored lifecycle downgrade suggestion from {session.current_lifecycle} to {new_lifecycle} (confidence {confidence})"
+                )
         except (KeyError, ValueError) as e:
             logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
             
@@ -301,10 +343,11 @@ class UnifiedAgent:
         else:
             normalized_messages = self._normalize_messages(messages)
         
-        # Gestisci transizione lifecycle solo se richiesta dall'AI
+        # Gestisci transizione lifecycle: ora viene applicata solo dopo che l'eventuale
+        # assistant message è stato salvato nella cronologia (per evitare transizioni duplicate
+        # visibili nella chat). Qui ritorniamo la decisione e la stringa target, la transizione
+        # verrà eseguita successivamente dalla funzione chiamante (chat)
         lifecycle_changed = False
-        if should_change:
-            lifecycle_changed = await self._handle_lifecycle_transition(session, new_lifecycle_str, confidence, db)
         
         return {
             "messages": normalized_messages,
@@ -324,7 +367,7 @@ class UnifiedAgent:
         result = await db.execute(
             select(MessageModel)
             .where(MessageModel.session_id == session.id)
-            .order_by(MessageModel.timestamp.desc())
+            .order_by(MessageModel.timestamp.desc(), MessageModel.id.desc())
             .limit(10)
         )
         messages = result.scalars().all()
@@ -460,6 +503,10 @@ IMPORTANTE:
                     log_capture.add_log("INFO", f"Flow blocked: human task {active_task.id} open for session {session.session_id}")
                     # Save user message to history but don't proceed with AI — front-end will show the task dashboard
                     await self._add_user_message_to_history(session, user_message, db)
+                    # Re-fetch session to see if lifecycle changed
+                    session_refreshed = await db.get(SessionModel, session.id)
+                    lifecycle_changed_flag = previous_lifecycle != session_refreshed.current_lifecycle
+
                     return LifecycleResponse(
                         messages=[],
                         current_lifecycle=session.current_lifecycle,
@@ -502,7 +549,21 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     await self._update_session_lifecycle(session, LifecycleStage.CONTRASSEGNATO, db)
                     
                     # Add auto response to history
-                    await self._add_to_conversation_history(session, user_message, auto_response, db)
+                    ai_msg = await self._add_to_conversation_history(session, user_message, auto_response, db)
+                    # If we updated session lifecycle above (NUOVA_LEAD -> CONTRASSEGNATO), create an anchored event
+                    if session.current_lifecycle != previous_lifecycle:
+                        try:
+                            event = LifecycleEventModel(
+                                session_id=session.id,
+                                previous_lifecycle=previous_lifecycle,
+                                new_lifecycle=session.current_lifecycle,
+                                trigger_message_id=ai_msg.id,
+                                confidence=None
+                            )
+                            db.add(event)
+                            await db.commit()
+                        except Exception as e:
+                            logger.warning(f"Impossibile creare lifecycle event per contrassegnato: {e}")
                     
                     # Now generate prompt for CONTRASSEGNATO and call AI
                     session_refreshed = await db.get(SessionModel, session.id)
@@ -521,7 +582,30 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     # Add AI response to history (unless human task required)
                     created_task = None
                     if not contrassegnato_result.get("requires_human"):
-                        await self._add_assistant_response_to_history(session_refreshed, contrassegnato_result["full_message_text"], db)
+                        # Save assistant message and anchor possible lifecycle change to this message
+                        ai_msg = await self._add_assistant_response_to_history(session_refreshed, contrassegnato_result["full_message_text"], db)
+                        # If the AI suggested a transition, apply it after saving the assistant message
+                        if contrassegnato_result.get("should_change"):
+                            prev = previous_lifecycle
+                            changed = await self._handle_lifecycle_transition(session_refreshed, contrassegnato_result["new_lifecycle_str"], contrassegnato_result["confidence"], db)
+                            if changed:
+                                try:
+                                    ai_msg.lifecycle = session_refreshed.current_lifecycle
+                                    await db.commit()
+                                except Exception:
+                                    pass
+                                try:
+                                    event = LifecycleEventModel(
+                                        session_id=session_refreshed.id,
+                                        previous_lifecycle=prev,
+                                        new_lifecycle=session_refreshed.current_lifecycle,
+                                        trigger_message_id=ai_msg.id,
+                                        confidence=contrassegnato_result.get("confidence")
+                                    )
+                                    db.add(event)
+                                    await db.commit()
+                                except Exception as e:
+                                    logger.warning(f"Impossibile creare lifecycle event: {e}")
                     else:
                         created_task = await self._create_human_task(session_refreshed, contrassegnato_result.get("human_task") or {}, db)
                         log_capture.add_log("INFO", f"Human task created (contrassegnato first message): {created_task}")
@@ -536,8 +620,8 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     return LifecycleResponse(
                         messages=combined_messages,
                         current_lifecycle=session_refreshed.current_lifecycle,
-                        lifecycle_changed=True,
-                        previous_lifecycle=previous_lifecycle,
+                        lifecycle_changed=lifecycle_changed_flag,
+                        previous_lifecycle=previous_lifecycle if lifecycle_changed_flag else None,
                         ai_reasoning=contrassegnato_result["reasoning"],
                         confidence=contrassegnato_result["confidence"],
                         debug_logs=log_capture.get_session_logs(),
@@ -636,18 +720,43 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     created_task = await self._create_human_task(session, result.get("human_task") or {}, db)
                     log_capture.add_log("INFO", f"Human task created: {created_task}")
                 else:
-                    await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
+                    ai_msg = await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
                     log_capture.add_log("INFO", "Conversation history updated")
+                    # If the AI suggested a transition, apply it AFTER saving the assistant message
+                    if result.get("should_change"):
+                        prev = previous_lifecycle
+                        changed = await self._handle_lifecycle_transition(session, result["new_lifecycle_str"], result["confidence"], db)
+                        if changed:
+                            try:
+                                ai_msg.lifecycle = session.current_lifecycle
+                                await db.commit()
+                            except Exception:
+                                pass
+                            try:
+                                event = LifecycleEventModel(
+                                    session_id=session.id,
+                                    previous_lifecycle=prev,
+                                    new_lifecycle=session.current_lifecycle,
+                                    trigger_message_id=ai_msg.id,
+                                    confidence=result.get("confidence")
+                                )
+                                db.add(event)
+                                await db.commit()
+                            except Exception as e:
+                                logger.warning(f"Impossibile creare lifecycle event: {e}")
                 
                 # `next_actions` removed - dropping per previous decision
                 
                 log_capture.add_log("INFO", "Response ready")
                 
+                session_after = await db.get(SessionModel, session.id)
+                lifecycle_changed_flag = previous_lifecycle != session_after.current_lifecycle
+
                 return LifecycleResponse(
                     messages=result["messages"],
                     current_lifecycle=session.current_lifecycle,
-                    lifecycle_changed=result["lifecycle_changed"],
-                    previous_lifecycle=previous_lifecycle if result["lifecycle_changed"] else None,
+                    lifecycle_changed=lifecycle_changed_flag,
+                    previous_lifecycle=previous_lifecycle if lifecycle_changed_flag else None,
                     ai_reasoning=result["reasoning"],
                     confidence=result["confidence"],
                     debug_logs=log_capture.get_session_logs(),
@@ -693,9 +802,17 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
             message=ai_response,
             timestamp=datetime.now(timezone.utc)
         )
+        # Save lifecycle at the time of the assistant message so we can track transitions
+        try:
+            ai_msg.lifecycle = session.current_lifecycle
+        except Exception:
+            # Best effort: if lifecycle isn't available, ignore
+            pass
         db.add(ai_msg)
         
         await db.commit()
+        await db.refresh(ai_msg)
+        return ai_msg
         
         # Mantieni solo gli ultimi 20 messaggi per ottimizzare la memoria (opzionale, ma per pulizia)
         # Potremmo implementare una pulizia periodica
@@ -704,15 +821,34 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
         """Aggiunge solo una risposta assistant alla cronologia (senza nuovo user message)"""
         
         # Aggiungi risposta AI
+        try:
+            # Deduplicate assistant messages that are identical and very recent
+            result = await db.execute(
+                select(MessageModel).where(MessageModel.session_id == session.id).order_by(MessageModel.timestamp.desc()).limit(1)
+            )
+            last_msg = result.scalar_one_or_none()
+            if last_msg and last_msg.role == "assistant":
+                delta = datetime.now(timezone.utc) - last_msg.timestamp
+                if last_msg.message.strip() == ai_response.strip() and delta.total_seconds() < 3:
+                    return
+        except Exception:
+            pass
+
         ai_msg = MessageModel(
             session_id=session.id,
             role="assistant",
             message=ai_response,
             timestamp=datetime.now(timezone.utc)
         )
+        try:
+            ai_msg.lifecycle = session.current_lifecycle
+        except Exception:
+            pass
         db.add(ai_msg)
-        
+
         await db.commit()
+        await db.refresh(ai_msg)
+        return ai_msg
 
     async def _create_human_task(self, session: SessionModel, task_payload: Dict, db: AsyncSession) -> Dict:
         """Crea una task per intervento umano basata sul payload fornito dall'AI"""

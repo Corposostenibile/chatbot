@@ -17,6 +17,7 @@ from app.models.database_models import SessionModel, MessageModel, SystemPromptM
 from app.services.system_prompt_service import SystemPromptService
 from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
+from app.models.api_models import MessageNoteCreate, MessageNoteResponse
 from app.models.api_models import HumanTaskCreate, HumanTaskUpdate
 from app.database import get_db
 import json as json_lib
@@ -25,6 +26,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 from app.models.database_models import HumanTaskModel
+from app.models.database_models import MessageNoteModel
 from app.models.lifecycle import LifecycleStage
 
 # Crea il router
@@ -192,25 +194,84 @@ async def session_conversation(session_id: str, request: Request):
             # Query ORM per ottenere tutti i messaggi della sessione
             messages_stmt = select(MessageModel).where(
                 MessageModel.session_id == session_data.id
-            ).order_by(MessageModel.timestamp.asc())
+            ).order_by(MessageModel.timestamp.asc(), MessageModel.id.asc())
 
             messages_result = await db.execute(messages_stmt)
             messages_data = messages_result.scalars().all()
+
+            # Also load lifecycle events to show transition markers anchored to messages
+            from app.models.database_models import LifecycleEventModel
+            events_stmt = select(LifecycleEventModel).where(LifecycleEventModel.session_id == session_data.id).order_by(LifecycleEventModel.created_at.asc())
+            events_result = await db.execute(events_stmt)
+            events_data = events_result.scalars().all()
 
         # Converti i messaggi in dizionari
         messages = []
         for msg in messages_data:
             messages.append({
+                'id': msg.id,
                 'role': msg.role,
                 'message': msg.message,
                 'timestamp': msg.timestamp
+                , 'lifecycle': msg.lifecycle.value if msg.lifecycle else None
             })
+
+        # Merge messages and lifecycle events into a single timeline (entries)
+        entries = []
+        for msg in messages:
+            entries.append({
+                'type': 'message',
+                'id': msg['id'],
+                'role': msg['role'],
+                'message': msg['message'],
+                'timestamp': msg['timestamp'],
+                'lifecycle': msg['lifecycle']
+            })
+
+        for ev in events_data:
+            entries.append({
+                'type': 'lifecycle_event',
+                'previous_lifecycle': ev.previous_lifecycle.value if ev.previous_lifecycle else None,
+                'new_lifecycle': ev.new_lifecycle.value,
+                'timestamp': ev.created_at,
+                'message_id': ev.trigger_message_id
+            })
+
+        # If there are events anchored to message ids, place them right before the message with that id
+        # else just sort by timestamp
+        # Create a dict for quick access
+        msg_index = {e['id']: i for i, e in enumerate(entries) if e['type'] == 'message'}
+        anchored = []
+        unanchored = []
+        for e in entries:
+            if e['type'] == 'lifecycle_event' and e.get('message_id'):
+                idx = msg_index.get(e['message_id'])
+                if idx is not None:
+                    anchored.append((idx, e))
+                else:
+                    unanchored.append(e)
+            else:
+                unanchored.append(e)
+
+        # Insert anchored events before the associated message by sorting
+        anchored.sort(key=lambda x: x[0])
+        # flatten anchored into unanchored list as specified
+        for idx, ev in anchored:
+            # place this event before the message with id
+            # find message in unanchored by id
+            for i, ee in enumerate(unanchored):
+                if ee.get('type') == 'message' and ee.get('id') == entries[idx]['id']:
+                    unanchored.insert(i, ev)
+                    break
+
+        # Finally, sort all by timestamp for chronological ordering
+        entries = sorted(unanchored, key=lambda x: (x['timestamp'], 0 if x['type'] == 'lifecycle_event' else 1))
 
         # Converti i dati della sessione
         session_info = {
             'id': session_data.id,
             'session_id': session_data.session_id,
-            'current_lifecycle': session_data.current_lifecycle,
+            'current_lifecycle': session_data.current_lifecycle.value if session_data.current_lifecycle else None,
             'user_info': session_data.user_info,
             'is_conversation_finished': session_data.is_conversation_finished,
             'created_at': session_data.created_at,
@@ -226,7 +287,7 @@ async def session_conversation(session_id: str, request: Request):
             {
                 "request": request,
                 "session": session_info,
-                "messages": messages,
+                "entries": entries if 'entries' in locals() else messages,
                 "app_version": settings.app_version
             }
         )
@@ -485,6 +546,96 @@ async def create_human_task(task: HumanTaskCreate):
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nella creazione della human task: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/api/message-notes", response_model=MessageNoteResponse)
+async def create_message_note(note: MessageNoteCreate):
+    """Crea una nuova nota/commento per un messaggio"""
+    try:
+        from app.services.message_review_service import MessageReviewService
+
+        created = await MessageReviewService.create_note(
+            message_id=note.message_id,
+            rating=note.rating,
+            note=note.note,
+            created_by=note.created_by
+        )
+        if not created:
+            raise HTTPException(status_code=400, detail="Impossibile creare la nota")
+
+        return MessageNoteResponse(
+            id=created.id,
+            message_id=created.message_id,
+            session_id=created.session_id,
+            rating=created.rating,
+            note=created.note,
+            created_by=created.created_by,
+            created_at=created.created_at.isoformat()
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nella creazione della message note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/message-notes")
+async def list_message_notes(message_id: int = None, session_id: int = None):
+    """Lista note per un messaggio o per una sessione"""
+    try:
+        from app.services.message_review_service import MessageReviewService
+
+        if message_id:
+            notes = await MessageReviewService.get_notes_for_message(message_id)
+        elif session_id:
+            notes = await MessageReviewService.get_notes_for_session(session_id)
+        else:
+            # default: return empty list
+            return []
+
+        out = []
+        for n in notes:
+            out.append({
+                "id": n.id,
+                "message_id": n.message_id,
+                "session_id": n.session_id,
+                "rating": n.rating,
+                "note": n.note,
+                "created_by": n.created_by,
+                "created_at": n.created_at.isoformat()
+            })
+
+        return out
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero delle message notes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/messages/{message_id}/notes")
+async def get_message_notes_for_message(message_id: int):
+    try:
+        from app.services.message_review_service import MessageReviewService
+        notes = await MessageReviewService.get_notes_for_message(message_id)
+
+        out = [
+            {
+                "id": n.id,
+                "message_id": n.message_id,
+                "session_id": n.session_id,
+                "rating": n.rating,
+                "note": n.note,
+                "created_by": n.created_by,
+                "created_at": n.created_at.isoformat()
+            }
+            for n in notes
+        ]
+        return out
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero delle message notes per message {message_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
