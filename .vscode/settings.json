@@ -1,0 +1,54 @@
+{
+    // Editor Settings
+    "editor.semanticHighlighting.enabled": true,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": "active",
+    "editor.matchBrackets": "always",
+    // Python Specific Settings
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportUnusedVariable": "warning",
+        "reportUnusedImport": "warning"
+    },
+    // Language Server Features
+    "python.languageServer": "Default",
+    // Go to Definition & Hover
+    "editor.gotoLocation.multipleDefinitions": "goto",
+    "editor.gotoLocation.multipleDeclarations": "goto",
+    "editor.gotoLocation.multipleImplementations": "goto",
+    "editor.hover.enabled": true,
+    "editor.hover.delay": 300,
+    "editor.hover.sticky": true,
+    // IntelliSense
+    "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": true
+    },
+    "editor.suggestSelection": "first",
+    "editor.parameterHints.enabled": true,
+    "editor.suggest.showMethods": true,
+    "editor.suggest.showFunctions": true,
+    "editor.suggest.showVariables": true,
+    "editor.suggest.showClasses": true,
+    "editor.suggest.showModules": true,
+    // Inlay Hints (for better code understanding)
+    "editor.inlayHints.enabled": "on",
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.inlayHints.pytestParameters": true,
+    // Additional Editor Enhancements
+    "editor.cursorBlinking": "smooth",
+    "editor.cursorSmoothCaretAnimation": "on",
+    "editor.smoothScrolling": true,
+    "editor.fontLigatures": true,
+    // File Associations
+    "files.associations": {
+        "*.py": "python",
+        "*.html": "html",
+        "*.css": "css",
+        "*.js": "javascript",
+        "*.json": "jsonc"
+    }
+}

@@ -123,7 +123,7 @@ dmypy.json
 .pyre/
 
 # IDEs
-.vscode/
+# .vscode/ - now tracked for team consistency
 .idea/
 *.swp
 *.swo
