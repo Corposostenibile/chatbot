@@ -4,7 +4,7 @@ Contiene tutti gli endpoint FastAPI
 """
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from fastapi import APIRouter, HTTPException, Request, Body
@@ -205,6 +205,12 @@ async def session_conversation(session_id: str, request: Request):
             events_result = await db.execute(events_stmt)
             events_data = events_result.scalars().all()
 
+        # Helper per garantire timezone awareness
+        def ensure_aware(dt):
+            if dt and dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt
+
         # Converti i messaggi in dizionari
         messages = []
         for msg in messages_data:
@@ -212,7 +218,7 @@ async def session_conversation(session_id: str, request: Request):
                 'id': msg.id,
                 'role': msg.role,
                 'message': msg.message,
-                'timestamp': msg.timestamp
+                'timestamp': ensure_aware(msg.timestamp)
                 , 'lifecycle': msg.lifecycle.value if msg.lifecycle else None
             })
 
@@ -233,7 +239,7 @@ async def session_conversation(session_id: str, request: Request):
                 'type': 'lifecycle_event',
                 'previous_lifecycle': ev.previous_lifecycle.value if ev.previous_lifecycle else None,
                 'new_lifecycle': ev.new_lifecycle.value,
-                'timestamp': ev.created_at,
+                'timestamp': ensure_aware(ev.created_at),
                 'message_id': ev.trigger_message_id
             })
 

@@ -1,19 +1,20 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chatbot Preview & Debug</title>
-    
+
     <!-- Google Fonts & Font Awesome -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Prism.js per Syntax Highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
-    
+
     <style>
         :root {
             --primary-color: #667eea;
@@ -27,64 +28,358 @@
             --border-radius: 12px;
             --log-bg: #1e1e1e;
         }
-        * { box-sizing: border-box; }
-        html, body {
-            height: 100%; margin: 0; font-family: 'Poppins', sans-serif;
-            background-color: #f4f7fc; overflow: hidden;
+
+        * {
+            box-sizing: border-box;
         }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Poppins', sans-serif;
+            background-color: #f4f7fc;
+            overflow: hidden;
+        }
+
         /* ... [Stili base e layout rimangono invariati] ... */
-        .main-container { display: flex; gap: 20px; padding: 20px; height: 100%; }
-        .chat-column, .logs-column { flex: 1; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-        .panel { background: var(--panel-bg); border-radius: var(--border-radius); box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden; }
-        .panel-header { background: var(--background-gradient); color: var(--text-light); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .panel-header h5 { margin: 0; font-size: 18px; font-weight: 600; }
-        .panel-header h5 i { margin-right: 10px; opacity: 0.8; }
-        .panel-header small { opacity: 0.9; font-size: 12px; }
-        .sidebar-panel { flex-shrink: 0; }
-        .sidebar-panel-content { padding: 20px; }
-        .chat-panel { flex-grow: 1; }
-        .sidebar-section { margin-bottom: 25px; }
-        .sidebar-section:last-child { margin-bottom: 0; }
-        .sidebar-section h6 { color: var(--primary-color); font-weight: 600; margin-bottom: 12px; font-size: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
-        .form-group label { font-weight: 500; font-size: 13px; color: var(--text-dark); margin-bottom: 6px; }
-        .form-control { font-size: 14px; border: 1px solid #dee2e6; border-radius: 8px; padding: 8px 12px; transition: all 0.2s ease; }
-        .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15); outline: none; }
-        .status-badge { background: #f0f3ff; border-left: 4px solid var(--primary-color); padding: 12px; border-radius: 8px; font-size: 13px; color: var(--text-dark); }
-        .status-badge strong { color: var(--primary-color); display: block; margin-bottom: 5px; font-weight: 600; }
-        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; }
-        .message { margin-bottom: 15px; display: flex; animation: slideIn 0.3s ease-out; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .message.user { justify-content: flex-end; }
-        .message.bot { justify-content: flex-start; }
-        .message-content { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
-        .message.user .message-content { background: var(--primary-color); color: var(--text-light); border-bottom-right-radius: 5px; }
-        .message.bot .message-content { background: #e9ecef; color: var(--text-dark); border-bottom-left-radius: 5px; }
-        .message-time { font-size: 11px; color: #888; margin-top: 5px; padding: 0 8px; }
-        .message.user .message-time { text-align: right; }
-        .chat-input-area { padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; gap: 10px; align-items: center; }
-        #message { flex: 1; padding: 10px 15px; resize: none; max-height: 120px; }
-        .btn-send { background: var(--background-gradient); color: var(--text-light); border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 18px; flex-shrink: 0; transition: transform 0.2s, box-shadow 0.2s; }
-        .btn-send:hover { transform: scale(1.1); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
-        .btn-send:disabled { opacity: 0.6; cursor: not-allowed; transform: scale(1); box-shadow: none; }
-        .logs-panel { flex-grow: 1; }
-        .logs-content {
-            flex: 1; overflow-y: auto; background: var(--log-bg); color: #d4d4d4;
-            font-family: 'SF Mono', 'Courier New', monospace; font-size: 12px; padding: 15px; line-height: 1.7;
+        .main-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            height: 100%;
         }
+
+        .chat-column,
+        .logs-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 0;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            background: var(--background-gradient);
+            color: var(--text-light);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h5 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .panel-header h5 i {
+            margin-right: 10px;
+            opacity: 0.8;
+        }
+
+        .panel-header small {
+            opacity: 0.9;
+            font-size: 12px;
+        }
+
+        .sidebar-panel {
+            flex-shrink: 0;
+        }
+
+        .sidebar-panel-content {
+            padding: 20px;
+        }
+
+        .chat-panel {
+            flex-grow: 1;
+        }
+
+        .sidebar-section {
+            margin-bottom: 25px;
+        }
+
+        .sidebar-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .sidebar-section h6 {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            font-size: 14px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 8px 12px;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+            outline: none;
+        }
+
+        .status-badge {
+            background: #f0f3ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-dark);
+        }
+
+        .status-badge strong {
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .message.user .message-content {
+            background: var(--primary-color);
+            color: var(--text-light);
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.bot .message-content {
+            background: #e9ecef;
+            color: var(--text-dark);
+            border-bottom-left-radius: 5px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            padding: 0 8px;
+        }
+
+        .message.user .message-time {
+            text-align: right;
+        }
+
+        .chat-input-area {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        #message {
+            flex: 1;
+            padding: 10px 15px;
+            resize: none;
+            max-height: 120px;
+        }
+
+        .btn-send {
+            background: var(--background-gradient);
+            color: var(--text-light);
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            flex-shrink: 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-send:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: scale(1);
+            box-shadow: none;
+        }
+
+        .logs-panel {
+            flex-grow: 1;
+        }
+
+        .logs-content {
+            flex: 1;
+            overflow-y: auto;
+            background: var(--log-bg);
+            color: #d4d4d4;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 15px;
+            line-height: 1.7;
+        }
+
         /* --- STILI PER LOG STANDARD --- */
-        .log-entry { display: flex; align-items: flex-start; gap: 10px; padding: 2px 5px; border-radius: 4px; margin-bottom: 2px; transition: background-color 0.2s; }
-        .log-entry:hover { background-color: #333; }
-        .log-icon { flex-shrink: 0; width: 16px; text-align: center; padding-top: 2px; }
-        .log-timestamp { color: #888; }
-        .log-level { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 10px; text-align: center; min-width: 60px; }
-        .log-message { white-space: pre-wrap; word-break: break-all; }
-        .log-entry.INFO .log-icon { color: #57a6ff; } .log-entry.INFO .log-level { background-color: #2e4a68; color: #a9d1ff; }
-        .log-entry.DEBUG .log-icon { color: #8a9099; } .log-entry.DEBUG .log-level { background-color: #3b3b3b; color: #a0a0a0; }
-        .log-entry.WARNING .log-icon { color: #ffcc00; } .log-entry.WARNING .log-level { background-color: #615119; color: #fbe06f; }
-        .log-entry.ERROR .log-icon { color: #ff6b6b; } .log-entry.ERROR .log-level { background-color: #612a2a; color: #ffb8b8; }
-        .log-entry.CRITICAL .log-icon { color: #ff4757; font-weight: bold; } .log-entry.CRITICAL .log-level { background-color: #e60023; color: white; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); } }
-        
+        .log-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            transition: background-color 0.2s;
+        }
+
+        .log-entry:hover {
+            background-color: #333;
+        }
+
+        .log-icon {
+            flex-shrink: 0;
+            width: 16px;
+            text-align: center;
+            padding-top: 2px;
+        }
+
+        .log-timestamp {
+            color: #888;
+        }
+
+        .log-level {
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .log-message {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .log-entry.INFO .log-icon {
+            color: #57a6ff;
+        }
+
+        .log-entry.INFO .log-level {
+            background-color: #2e4a68;
+            color: #a9d1ff;
+        }
+
+        .log-entry.DEBUG .log-icon {
+            color: #8a9099;
+        }
+
+        .log-entry.DEBUG .log-level {
+            background-color: #3b3b3b;
+            color: #a0a0a0;
+        }
+
+        .log-entry.WARNING .log-icon {
+            color: #ffcc00;
+        }
+
+        .log-entry.WARNING .log-level {
+            background-color: #615119;
+            color: #fbe06f;
+        }
+
+        .log-entry.ERROR .log-icon {
+            color: #ff6b6b;
+        }
+
+        .log-entry.ERROR .log-level {
+            background-color: #612a2a;
+            color: #ffb8b8;
+        }
+
+        .log-entry.CRITICAL .log-icon {
+            color: #ff4757;
+            font-weight: bold;
+        }
+
+        .log-entry.CRITICAL .log-level {
+            background-color: #e60023;
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(255, 71, 87, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+            }
+        }
+
         /* --- NUOVI STILI PER BLOCCHI PROMPT/RISPOSTA --- */
         .ai-log-container {
             border: 1px solid #444;
@@ -93,6 +388,7 @@
             background-color: #2a2a2e;
             overflow: hidden;
         }
+
         .ai-log-header {
             display: flex;
             align-items: center;
@@ -101,14 +397,25 @@
             font-weight: 600;
             font-size: 13px;
         }
-        .ai-log-header.prompt { background-color: #2e4a68; color: #a9d1ff; }
-        .ai-log-header.response { background-color: #285430; color: #a3e8b3; }
+
+        .ai-log-header.prompt {
+            background-color: #2e4a68;
+            color: #a9d1ff;
+        }
+
+        .ai-log-header.response {
+            background-color: #285430;
+            color: #a3e8b3;
+        }
+
         .ai-log-content {
             padding: 15px;
             background-color: #1e1e1e;
             font-size: 12.5px;
         }
-        .ai-log-content pre, .ai-log-content code {
+
+        .ai-log-content pre,
+        .ai-log-content code {
             margin: 0;
             padding: 0;
             background: none !important;
@@ -119,15 +426,48 @@
         }
 
         /* --- Altri stili e responsive... --- */
-        ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: #f1f1f1; } ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; } ::-webkit-scrollbar-thumb:hover { background: #aaa; }
-        .logs-content::-webkit-scrollbar-track { background: #2a2a2a; } .logs-content::-webkit-scrollbar-thumb { background: #555; } .logs-content::-webkit-scrollbar-thumb:hover { background: #777; }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
+        }
+
+        .logs-content::-webkit-scrollbar-track {
+            background: #2a2a2a;
+        }
+
+        .logs-content::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        .logs-content::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+
         /* --- Stili per schermata di fine conversazione --- */
         .finished-overlay {
             position: absolute;
-            inset: 0; display: flex; align-items: center; justify-content: center;
-            background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(246,246,255,0.95));
-            z-index: 70; border-radius: 12px; padding: 20px;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 246, 255, 0.95));
+            z-index: 70;
+            border-radius: 12px;
+            padding: 20px;
         }
+
         /* Banner style for non-blocking human task notice */
         .human-task-banner {
             display: flex;
@@ -137,19 +477,68 @@
             border-left: 4px solid #ef4444;
             padding: 12px 16px;
             border-radius: 10px;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
             margin: 12px 0;
             z-index: 20;
         }
-        .human-task-banner .banner-title { font-weight: 600; color:#991b1b }
-        .finished-card { text-align: center; padding: 30px 40px; background: white; box-shadow: 0 8px 30px rgba(102,112,255,0.12); border-radius: 16px; }
-        .finished-emoji { font-size: 60px; margin-bottom: 12px; }
-        .finished-text { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
-        .finished-sub { color: #666; font-size: 14px; margin-bottom: 12px; }
-        .btn-finish { background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 10px; cursor: pointer; }
-        @media (max-width: 1024px) { body { overflow: auto; } .main-container { flex-direction: column; height: auto; } .chat-column, .logs-column { min-height: 400px; } }
+
+        .human-task-banner .banner-title {
+            font-weight: 600;
+            color: #991b1b
+        }
+
+        .finished-card {
+            text-align: center;
+            padding: 30px 40px;
+            background: white;
+            box-shadow: 0 8px 30px rgba(102, 112, 255, 0.12);
+            border-radius: 16px;
+        }
+
+        .finished-emoji {
+            font-size: 60px;
+            margin-bottom: 12px;
+        }
+
+        .finished-text {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .finished-sub {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .btn-finish {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 1024px) {
+            body {
+                overflow: auto;
+            }
+
+            .main-container {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .chat-column,
+            .logs-column {
+                min-height: 400px;
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="main-container">
         <!-- Colonna Sinistra: Chat -->
@@ -162,7 +551,8 @@
                         <form id="configForm">
                             <div class="form-group">
                                 <label for="sessionId">Session ID:</label>
-                                <input type="text" id="sessionId" class="form-control" placeholder="es. test-session-001" required>
+                                <input type="text" id="sessionId" class="form-control"
+                                    placeholder="es. test-session-001" required>
                             </div>
                             <div class="form-group">
                                 <label for="modelSelect">Modello AI:</label>
@@ -170,11 +560,13 @@
                                     <option value="">Caricamento modelli...</option>
                                 </select>
                             </div>
-                                <div class="form-group">
-                                    <label for="batchWaitSeconds">Batch wait (secondi):</label>
-                                    <input type="number" id="batchWaitSeconds" class="form-control" placeholder="60" min="0" max="600" value="60">
-                                    <small>Numero di secondi da aspettare per aggregare messaggi prima di chiamare l'AI. Imposta 0 per chiamata immediata.</small>
-                                </div>
+                            <div class="form-group">
+                                <label for="batchWaitSeconds">Batch wait (secondi):</label>
+                                <input type="number" id="batchWaitSeconds" class="form-control" placeholder="60" min="0"
+                                    max="600" value="60">
+                                <small>Numero di secondi da aspettare per aggregare messaggi prima di chiamare l'AI.
+                                    Imposta 0 per chiamata immediata.</small>
+                            </div>
                         </form>
                     </div>
                     <div class="sidebar-section">
@@ -195,7 +587,8 @@
                 <div class="chat-messages" id="chatMessages"></div>
                 <div id="finishedOverlayPlaceholder" style="position: relative; min-height: 0;"></div>
                 <div class="chat-input-area">
-                    <textarea id="message" class="form-control" placeholder="Scrivi un messaggio..." rows="1"></textarea>
+                    <textarea id="message" class="form-control" placeholder="Scrivi un messaggio..."
+                        rows="1"></textarea>
                     <button type="submit" id="sendBtn" class="btn-send"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
             </div>
@@ -214,7 +607,8 @@
 
     <!-- Prism.js Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
     <script>
         // ... [Variabili e funzioni di inizializzazione rimangono invariate] ...
@@ -232,10 +626,10 @@
             try {
                 const response = await fetch('/api/models');
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
+
                 const data = await response.json();
                 modelSelect.innerHTML = '<option value="">Modello attivo (default)</option>';
-                
+
                 if (data.models && data.models.length > 0) {
                     data.models.forEach(model => {
                         const option = document.createElement('option');
@@ -267,7 +661,7 @@
         }
 
         sessionIdInput.addEventListener('change', (e) => updateSessionId(e.target.value));
-        messageInput.addEventListener('input', function() {
+        messageInput.addEventListener('input', function () {
             this.style.height = 'auto';
             this.style.height = `${Math.min(this.scrollHeight, 120)}px`;
         });
@@ -311,14 +705,14 @@
                 if (!response.ok) { throw new Error(`HTTP ${response.status}: ${response.statusText}`); }
 
                 const data = await response.json();
-                
+
                 // Gestisci casi speciali
                 if (data.requires_human) {
                     // Show a small badge but if the request was blocked due to an open task, show the blocking overlay
-                    showHumanTaskCreatedUI(data.human_task || {id: 'N/A', title: 'Assistenza richiesta'});
+                    showHumanTaskCreatedUI(data.human_task || { id: 'N/A', title: 'Assistenza richiesta' });
                     // If messages empty, that means the backend blocked the flow — show overlay
                     if (!data.messages || (Array.isArray(data.messages) && data.messages.length === 0)) {
-                        showHumanTaskOpenUI(data.human_task || {id: 'N/A', title: 'Assistenza richiesta'});
+                        showHumanTaskOpenUI(data.human_task || { id: 'N/A', title: 'Assistenza richiesta' });
                     }
                 }
                 // Gestisci messaggi multipli
@@ -341,7 +735,7 @@
                     // Fallback
                     addMessage("Risposta ricevuta ma formato non riconosciuto", 'bot');
                 }
-                
+
                 statusContainer.innerHTML = `<strong>Status:</strong><div id="status">Lifecycle: <strong>${data.current_lifecycle || 'N/A'}</strong>${data.lifecycle_changed ? `<br>Cambio: ${data.previous_lifecycle} → ${data.current_lifecycle}${data.ai_reasoning ? `<br><small style="color: #666; font-style: italic;">Motivo: ${data.ai_reasoning}</small>` : ''}${data.confidence ? `<br><small style="color: #888;">Confidenza: ${(data.confidence * 100).toFixed(1)}%</small>` : ''}` : ''}</div>`;
 
                 if (data.full_logs) { renderLogs(data.full_logs); }
@@ -388,7 +782,7 @@
             }
             debugLogsDiv.scrollTop = debugLogsDiv.scrollHeight;
         }
-        
+
         /**
          * NUOVA FUNZIONE per renderizzare i blocchi Prompt/Risposta
          */
@@ -396,7 +790,7 @@
             // Estrae il prompt
             const promptMatch = logString.match(/SCRIPT GUIDA([\s\S]*?)```json/);
             const promptText = promptMatch ? `SCRIPT GUIDA${promptMatch[1]}` : 'Prompt non trovato.';
-            
+
             // Estrae la risposta JSON
             const responseMatch = logString.match(/```json([\s\S]*)```/);
             const responseJson = responseMatch ? responseMatch[1].trim() : 'Risposta JSON non trovata.';
@@ -427,7 +821,7 @@
                     </div>
                 </div>
             `;
-            
+
             debugLogsDiv.innerHTML = promptHtml + responseHtml;
             Prism.highlightAll(); // Attiva il syntax highlighting
         }
@@ -439,19 +833,19 @@
             const match = logLine.match(regex);
             let timestamp, level, message;
 
-            if (match) { [ , timestamp, level, message] = match.map(s => s.trim()); } 
+            if (match) { [, timestamp, level, message] = match.map(s => s.trim()); }
             else { timestamp = getTimestamp(); level = 'INFO'; message = logLine; }
-            
+
             entryDiv.classList.add(level);
             const icons = { 'DEBUG': 'fa-solid fa-bug', 'INFO': 'fa-solid fa-circle-info', 'WARNING': 'fa-solid fa-triangle-exclamation', 'ERROR': 'fa-solid fa-circle-xmark', 'CRITICAL': 'fa-solid fa-skull-crossbones' };
-            
+
             entryDiv.innerHTML = `<i class="log-icon ${icons[level] || 'fa-solid fa-question'}"></i><span class="log-timestamp">${escapeHtml(timestamp)}</span><span class="log-level">${escapeHtml(level)}</span><span class="log-message">${escapeHtml(message)}</span>`;
             return entryDiv;
         }
 
         function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
         function getTimestamp() { return new Date().toLocaleTimeString('it-IT', { hour12: false }); }
-        
+
         initialize();
     </script>
     <script>
@@ -514,10 +908,11 @@
             banner.id = 'humanTaskBanner';
             banner.innerHTML = `
                 <div class="banner-left">🛑</div>
-                <div class="banner-content">
+                <div class="banner-content" style="flex: 1;">
                     <div class="banner-title">Intervento umano necessario</div>
                     <div class="banner-sub">${escapeHtml(taskInfo.title || '')}</div>
                 </div>
+                <button id="bannerViewTasks" class="btn-finish" style="font-size: 0.8rem; padding: 6px 12px;">Visualizza Tasks</button>
             `;
             placeholder.appendChild(banner);
 
@@ -529,4 +924,5 @@
         }
     </script>
 </body>
+
 </html>

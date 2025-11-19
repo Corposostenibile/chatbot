@@ -453,7 +453,7 @@
                         {% elif entry.type == 'message' %}
                             <div class="message message-{{ entry.role }}" {% if entry.role == 'assistant' %}data-message-id="{{ entry.id }}" data-lifecycle="{{ entry.lifecycle }}"{% endif %}>
                         <div class="message-avatar">
-                            {% if message.role == 'user' %}
+                            {% if entry.role == 'user' %}
                                 👤
                             {% else %}
                                 🤖
@@ -461,17 +461,16 @@
                         </div>
                         <div class="message-content">
                             <div class="message-header">
-                                <span class="message-role">{{ message.role.title() }}</span>
-                                {% if message.role == 'assistant' %}
-                                    <span class="note-indicator" id="note-indicator-{{ message.id }}" style="margin-left:8px; font-size:0.85rem; color:#6b7280;">(caricamento...)</span>
+                                <span class="message-role">{{ entry.role.title() }}</span>
+                                {% if entry.role == 'assistant' %}
+                                    <span class="note-indicator" id="note-indicator-{{ entry.id }}" style="margin-left:8px; font-size:0.85rem; color:#6b7280;">(caricamento...)</span>
                                 {% endif %}
-                                <span class="message-time">{{ message.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
+                                <span class="message-time">{{ entry.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
                             </div>
                             <div class="message-text">{{ entry.message }}</div>
                         </div>
                     </div>
                         {% endif %}
-                    {% endfor %}
                     {% endfor %}
                 {% else %}
                     <div class="empty-state">

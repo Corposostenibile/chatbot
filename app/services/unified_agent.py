@@ -489,6 +489,8 @@ IMPORTANTE:
                 
                 # Ottieni o crea la sessione
                 session = await self.get_or_create_session(session_id, db)
+                previous_lifecycle = session.current_lifecycle
+
                 # If there is an open human task associated with this session (not completed), we block the agent
                 # and ask for human intervention. This prevents the AI from continuing the conversation
                 # while a human is responsible for follow-up.
@@ -527,7 +529,6 @@ IMPORTANTE:
                             "metadata": json_lib.loads(active_task.metadata_json) if active_task.metadata_json else None,
                         }
                     )
-                previous_lifecycle = session.current_lifecycle
                 
                 log_capture.add_log("INFO", f"Session loaded: {session_id}")
                 
@@ -617,6 +618,8 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     else:
                         combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000})
                     
+                    lifecycle_changed_flag = previous_lifecycle != session_refreshed.current_lifecycle
+
                     return LifecycleResponse(
                         messages=combined_messages,
                         current_lifecycle=session_refreshed.current_lifecycle,
@@ -655,8 +658,9 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 session.batch_started_at = datetime.now(timezone.utc)
                 await db.commit()
 
-                # Add current user message to history and then wait for more messages
-                await self._add_user_message_to_history(session, user_message, db)
+                # NOTE: We don't save the user message here because _add_to_conversation_history
+                # will save both user and assistant messages together after the AI response.
+                # This prevents duplicate user messages in the database.
 
                 # Wait for aggregation window (default 60s). This is intentionally blocking the request.
                 # Respect explicit 0 value (no wait) vs None (default wait)
