@@ -164,3 +164,6 @@ webroot/
 
 # Google Cloud
 .gcloudignore
+
+# Debug files
+response.json
