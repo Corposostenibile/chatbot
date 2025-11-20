@@ -60,16 +60,7 @@ Per avviare l'applicazione in locale:
 ```bash
 ./scripts/local.sh local-run
 ```
-Oppure direttamente con uvicorn (se l'ambiente è attivato):
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
-```
 
-### Testing
-Eseguire i test con pytest:
-```bash
-pytest
-```
 
 ### Aggiunta Nuove Funzionalità
 1.  **Modelli**: Se necessario, aggiornare `app/models/database_models.py` e creare la migrazione.

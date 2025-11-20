@@ -21,11 +21,11 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         ],
         "available_snippets": ""
     },
-    
+
     LifecycleStage.CONTRASSEGNATO: {
         "script": list(LEVEL_2_SNIPPETS.values()),
         "next_stage": LifecycleStage.IN_TARGET,
-        "objective": "Rispondi dopo il messaggio automatico con esattamente lo snippet 'livello_2', raccogli le informazioni di base in un unico messaggio (NON SPEZZETTARE), e solo una volta ottenute, chiedere esplicitamente qual è la motivazione principale per cui vuole migliorare (SPEZZETTARE qui esattamente come da script), passare al prossimo lifecycle appena chiesta la motivazione.",
+        "objective": "Rispondi dopo il messaggio automatico con esattamente lo snippet 'livello_2'. NON scusarti per l'attesa. Raccogli le informazioni di base in un unico messaggio (NON SPEZZETTARE), e solo una volta ottenute, chiedere esplicitamente qual è la motivazione principale per cui vuole migliorare (SPEZZETTARE qui esattamente come da script), passare al prossimo lifecycle appena chiesta la motivazione.",
         "transition_indicators": [
             "Hai tutte le informazioni necessarie (nome, obiettivo, età)",
             "Il cliente ha confermato interesse a proseguire",
@@ -33,7 +33,7 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         ],
         "available_snippets": {**GENERIC_SNIPPETS}
     },
-    
+
     LifecycleStage.IN_TARGET: {
         "script": list(LEVEL_3_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_DA_INVIARE,
@@ -43,7 +43,7 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
-    
+
     LifecycleStage.LINK_DA_INVIARE: {
         "script": list(LEVEL_4_SNIPPETS.values()),
         "next_stage": LifecycleStage.LINK_INVIATO,
@@ -53,7 +53,7 @@ LIFECYCLE_SCRIPTS: Dict[LifecycleStage, Dict] = {
         ],
         "available_snippets": {**GENERIC_MESSAGES, **GENERIC_SNIPPETS}
     },
-    
+
     LifecycleStage.LINK_INVIATO: {
         "script": list(LEVEL_5_SNIPPETS.values()),
         "next_stage": None,  # Final stage
