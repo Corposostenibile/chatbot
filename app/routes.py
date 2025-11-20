@@ -107,7 +107,7 @@ async def preview(request: Request):
         from app.main import logger
         logger.error(f"Errore nel caricamento del template di test chat: {e}")
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Errore nel caricamento del template di test: {str(e)}"
         )
 
@@ -339,6 +339,94 @@ async def get_available_models():
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel recupero dei modelli: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/sessions_list")
+async def get_sessions_list():
+    """Ottiene la lista delle sessioni disponibili per il selettore nella chat UI"""
+    try:
+        async for db in get_db():
+            # Query per ottenere sessioni con conteggio messaggi
+            stmt = select(
+                SessionModel.session_id,
+                SessionModel.created_at,
+                SessionModel.updated_at,
+                SessionModel.current_lifecycle,
+                func.count(MessageModel.id).label('message_count')
+            ).outerjoin(
+                MessageModel, SessionModel.id == MessageModel.session_id
+            ).group_by(
+                SessionModel.id,
+                SessionModel.session_id,
+                SessionModel.created_at,
+                SessionModel.updated_at,
+                SessionModel.current_lifecycle
+            ).order_by(SessionModel.updated_at.desc())
+
+            result = await db.execute(stmt)
+            sessions_data = result.fetchall()
+
+        # Converti i risultati in dizionari
+        sessions = []
+        for row in sessions_data:
+            sessions.append({
+                'session_id': row.session_id,
+                'created_at': row.created_at.isoformat(),
+                'updated_at': row.updated_at.isoformat(),
+                'current_lifecycle': row.current_lifecycle.value if row.current_lifecycle else None,
+                'message_count': row.message_count
+            })
+
+        return {"sessions": sessions}
+
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero della lista sessioni: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/session/{session_id}/history")
+async def get_session_history(session_id: str):
+    """Ottiene la cronologia dei messaggi per una sessione specifica"""
+    try:
+        async for db in get_db():
+            # Query per ottenere la sessione
+            session_stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+            session_result = await db.execute(session_stmt)
+            session_data = session_result.scalar_one_or_none()
+
+            if not session_data:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            # Query per ottenere tutti i messaggi della sessione
+            messages_stmt = select(MessageModel).where(
+                MessageModel.session_id == session_data.id
+            ).order_by(MessageModel.timestamp.asc(), MessageModel.id.asc())
+
+            messages_result = await db.execute(messages_stmt)
+            messages_data = messages_result.scalars().all()
+
+        # Converti i messaggi in dizionari
+        messages = []
+        for msg in messages_data:
+            messages.append({
+                'role': msg.role,
+                'message': msg.message,
+                'timestamp': msg.timestamp.isoformat()
+            })
+
+        return {
+            "session_id": session_id,
+            "messages": messages,
+            "current_lifecycle": session_data.current_lifecycle.value if session_data.current_lifecycle else None
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel recupero della cronologia sessione {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -778,7 +866,7 @@ async def system_prompts_dashboard(request: Request):
     """Dashboard per gestire i system prompts"""
     try:
         prompts = await SystemPromptService.get_all_prompts()
-        
+
         # Converti in dizionari per il template
         prompts_data = []
         for prompt in prompts:
@@ -792,9 +880,9 @@ async def system_prompts_dashboard(request: Request):
                 'created_at': prompt.created_at,
                 'updated_at': prompt.updated_at
             })
-        
+
         settings = get_settings()
-        
+
         return templates.TemplateResponse(
             "system_prompts.html",
             {
@@ -803,7 +891,7 @@ async def system_prompts_dashboard(request: Request):
                 "app_version": settings.app_version
             }
         )
-        
+
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nel rendering della dashboard system prompts: {e}")
@@ -847,10 +935,10 @@ async def get_system_prompt(prompt_id: int):
                 select(SystemPromptModel).where(SystemPromptModel.id == prompt_id)
             )
             prompt = result.scalar_one_or_none()
-            
+
             if not prompt:
                 raise HTTPException(status_code=404, detail="Prompt non trovato")
-            
+
             return {
                 'id': prompt.id,
                 'name': prompt.name,
@@ -895,7 +983,7 @@ async def create_system_prompt(prompt: SystemPromptCreate):
         )
         if not created_prompt:
             raise HTTPException(status_code=400, detail="Errore nella creazione del prompt")
-        
+
         return {
             'id': created_prompt.id,
             'name': created_prompt.name,
@@ -952,7 +1040,7 @@ async def session_tasks_dashboard(session_id: str, request: Request):
             session = result.scalar_one_or_none()
             if not session:
                 raise HTTPException(status_code=404, detail="Sessione non trovata")
-            
+
             # Get all tasks for this session
             stmt_tasks = select(HumanTaskModel).where(
                 HumanTaskModel.session_id == session.id
@@ -1014,7 +1102,7 @@ async def update_system_prompt(prompt_id: int, prompt: SystemPromptUpdate):
         )
         if not success:
             raise HTTPException(status_code=404, detail="Prompt non trovato")
-        
+
         return {"message": "Prompt aggiornato con successo"}
     except HTTPException:
         raise
@@ -1031,7 +1119,7 @@ async def activate_system_prompt(prompt_id: int):
         success = await SystemPromptService.set_active_prompt(prompt_id)
         if not success:
             raise HTTPException(status_code=404, detail="Prompt non trovato")
-        
+
         return {"message": "Prompt attivato con successo"}
     except HTTPException:
         raise
@@ -1048,7 +1136,7 @@ async def delete_system_prompt(prompt_id: int):
         success = await SystemPromptService.delete_prompt(prompt_id)
         if not success:
             raise HTTPException(status_code=404, detail="Prompt non trovato")
-        
+
         return {"message": "Prompt eliminato con successo"}
     except HTTPException:
         raise
@@ -1056,7 +1144,7 @@ async def delete_system_prompt(prompt_id: int):
         from app.main import logger
         logger.error(f"Errore nell'eliminazione del system prompt {prompt_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 """Endpoint API per eseguire comandi del server script"""
 @router.get("/api/execute/{command}")
 async def execute_command(command: str):

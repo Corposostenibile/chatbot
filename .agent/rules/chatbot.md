@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # Istruzioni del Progetto Chatbot
 
 Questo file contiene le istruzioni essenziali per lavorare sul progetto Chatbot. Segui queste linee guida per mantenere la coerenza e la qualità del codice.
