@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Sessione - {{ session.session_id }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .session-info h1 {
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .session-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .back-button {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .notes-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .note-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        .note-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .rating-badge {
+            background: #fef3c7;
+            color: #d97706;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .rating-high {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .rating-low {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .note-meta {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .note-text {
+            color: #374151;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+
+        .message-preview {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #4f46e5;
+            font-size: 0.9rem;
+            color: #4b5563;
+            margin-bottom: 15px;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 15px;
+        }
+
+        .btn-action {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-edit {
+            background: #e0e7ff;
+            color: #4338ca;
+        }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .btn-action:hover {
+            opacity: 0.9;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .modal-btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .modal-btn-secondary {
+            background: #e5e7eb;
+            color: #374151;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="session-info">
+                    <h1>📝 Note Sessione</h1>
+                    <div class="session-id">{{ session.session_id }}</div>
+                </div>
+                <a href="/session/{{ session.session_id }}" class="back-button">← Torna alla Chat</a>
+            </div>
+        </div>
+
+        <div class="content">
+            {% if notes %}
+            <div class="notes-grid">
+                {% for note in notes %}
+                <div class="note-card" id="note-{{ note.id }}">
+                    <div class="note-header">
+                        <span
+                            class="rating-badge {% if note.rating >= 4 %}rating-high{% elif note.rating <= 2 %}rating-low{% endif %}">
+                            Voto: {{ note.rating }}/5
+                        </span>
+                        <div class="note-meta">
+                            {{ note.created_at }} • {{ note.created_by or 'Anonimo' }}
+                        </div>
+                    </div>
+
+                    {% if note.message_preview %}
+                    <div class="message-preview">
+                        <strong>Messaggio AI:</strong><br>
+                        {{ note.message_preview[:200] }}{% if note.message_preview|length > 200 %}...{% endif %}
+                    </div>
+                    {% endif %}
+
+                    <div class="note-text">{{ note.note }}</div>
+
+                    <div class="note-actions">
+                        <button class="btn-action btn-edit" data-note-id="{{ note.id }}"
+                            data-note-rating="{{ note.rating }}" data-note-text="{{ note.note|e }}"
+                            onclick="openEditModalFromButton(this)">✏️ Modifica</button>
+                        <button class="btn-action btn-delete" onclick="deleteNote({{ note.id }})">🗑️ Elimina</button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <h3>📭 Nessuna nota presente</h3>
+                <p>Non ci sono ancora note per questa sessione.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="editModal">
+        <div class="modal-content">
+            <h3>Modifica Nota</h3>
+            <form id="editForm">
+                <input type="hidden" id="editNoteId">
+                <div class="form-group">
+                    <label class="form-label">Voto</label>
+                    <select id="editRating" class="form-input" required>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nota</label>
+                    <textarea id="editNoteText" class="form-textarea" rows="4" required></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary"
+                        onclick="closeEditModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Salva Modifiche</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openEditModalFromButton(button) {
+            const id = button.getAttribute('data-note-id');
+            const rating = button.getAttribute('data-note-rating');
+            const text = button.getAttribute('data-note-text');
+            openEditModal(id, rating, text);
+        }
+
+        function openEditModal(id, rating, text) {
+            document.getElementById('editNoteId').value = id;
+            document.getElementById('editRating').value = rating;
+            document.getElementById('editNoteText').value = text;
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        async function deleteNote(id) {
+            if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
+
+            try {
+                const resp = await fetch(`/api/message-notes/${id}`, { method: 'DELETE' });
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    alert('Errore durante l\'eliminazione');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Errore di rete');
+            }
+        }
+
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editNoteId').value;
+            const rating = document.getElementById('editRating').value;
+            const note = document.getElementById('editNoteText').value;
+
+            try {
+                const resp = await fetch(`/api/message-notes/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rating: parseInt(rating), note })
+                });
+
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    alert('Errore durante il salvataggio');
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Errore di rete');
+            }
+        });
+    </script>
+</body>
+
+</html>

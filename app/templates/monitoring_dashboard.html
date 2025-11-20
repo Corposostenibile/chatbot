@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +34,7 @@
         .header h1 {
             font-size: 3rem;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .header p {
@@ -52,14 +53,14 @@
             background: white;
             border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
         }
 
         .card-header {
@@ -151,7 +152,7 @@
         }
 
         .quick-actions {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             border-radius: 12px;
             padding: 25px;
             margin-bottom: 30px;
@@ -172,10 +173,10 @@
 
         .footer {
             text-align: center;
-            color: rgba(255,255,255,0.8);
+            color: rgba(255, 255, 255, 0.8);
             margin-top: 40px;
             padding-top: 20px;
-            border-top: 1px solid rgba(255,255,255,0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .footer a {
@@ -203,6 +204,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -215,9 +217,11 @@
             <div class="actions-grid">
                 <a href="/preview" class="btn btn-info">💬 Test Chat</a>
                 <a href="/tasks" class="btn btn-info">✅ Human Tasks</a>
-                <a href="/flow" class="btn btn-info">� Flusso End-to-End</a>
                 <a href="/sessions" class="btn btn-info">📋 Sessioni DB</a>
+                <a href="/tasks" class="btn btn-warning">👷 Human Tasks</a>
                 <a href="/system-prompts" class="btn btn-info">🤖 System Prompts</a>
+                <a href="/project-report" class="btn btn-info">📑 Full Report</a>
+                <a href="/architecture" class="btn btn-info">🗺️ Architecture</a>
                 <a href="/docs" class="btn btn-info">📖 API Docs</a>
                 <a href="/health" class="btn btn-success">❤️ Health Check</a>
             </div>
@@ -227,7 +231,8 @@
             <!-- Server Management -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🖥️</div>
+                    <div class="card-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🖥️
+                    </div>
                     <h3 class="card-title">Gestione Server</h3>
                 </div>
                 <p class="card-description">Controlla lo stato e gestisci i servizi del server Docker</p>
@@ -237,7 +242,8 @@
             <!-- SSL Management -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🔒</div>
+                    <div class="card-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🔒
+                    </div>
                     <h3 class="card-title">Certificati SSL</h3>
                 </div>
                 <p class="card-description">Verifica la configurazione SSL e i certificati Let's Encrypt</p>
@@ -247,7 +253,8 @@
             <!-- Monitoring -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">📊</div>
+                    <div class="card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">📊
+                    </div>
                     <h3 class="card-title">Monitoraggio</h3>
                 </div>
                 <p class="card-description">Controlli automatici di health e monitoraggio delle risorse</p>
@@ -257,12 +264,14 @@
             <!-- Dependencies -->
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">📦</div>
+                    <div class="card-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">📦
+                    </div>
                     <h3 class="card-title">Dipendenze Python</h3>
                 </div>
                 <p class="card-description">Verifica le dipendenze Poetry e l'ambiente Python</p>
                 <button onclick="executeCommand('dependencies-check')" class="btn">🔍 Verifica Dipendenze</button>
-                <button onclick="executeCommand('dependencies-lock')" class="btn btn-secondary" style="margin-top: 10px;">🔒 Aggiorna Lock File</button>
+                <button onclick="executeCommand('dependencies-lock')" class="btn btn-secondary"
+                    style="margin-top: 10px;">🔒 Aggiorna Lock File</button>
             </div>
         </div>
 
@@ -270,16 +279,20 @@
         <div id="output-container" style="display: none;">
             <div class="card">
                 <div class="card-header">
-                    <div class="card-icon" style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%);">📤</div>
+                    <div class="card-icon" style="background: linear-gradient(135deg, #374151 0%, #1f2937 100%);">📤
+                    </div>
                     <h3 class="card-title">Output Comando</h3>
                 </div>
-                <div id="output-content" style="background: #f8fafc; padding: 20px; border-radius: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></div>
+                <div id="output-content"
+                    style="background: #f8fafc; padding: 20px; border-radius: 8px; font-family: 'Courier New', monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto;">
+                </div>
                 <button onclick="closeOutput()" class="btn btn-secondary" style="margin-top: 15px;">❌ Chiudi</button>
             </div>
         </div>
 
         <div class="footer">
-            <p>Chatbot Corposostenibile v{{ app_version }} • <a href="/status">API Status</a> • <a href="/docs">Documentazione</a></p>
+            <p>Chatbot Corposostenibile v{{ app_version }} • <a href="/status">API Status</a> • <a
+                    href="/docs">Documentazione</a></p>
         </div>
     </div>
 
@@ -322,4 +335,5 @@
         }, 30000);
     </script>
 </body>
+
 </html>

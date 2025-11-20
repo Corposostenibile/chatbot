@@ -5,19 +5,20 @@ Contiene tutti gli endpoint FastAPI
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, Body
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
 from app.models.database_models import SessionModel, MessageModel, SystemPromptModel
 from app.services.system_prompt_service import SystemPromptService
 from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
-from app.models.api_models import MessageNoteCreate, MessageNoteResponse
+from app.models.api_models import MessageNoteCreate, MessageNoteResponse, MessageNoteUpdate
 from app.models.api_models import HumanTaskCreate, HumanTaskUpdate
 from app.database import get_db
 import json as json_lib
@@ -62,39 +63,22 @@ async def root(request: Request):
         )
 
 
-@router.get("/flow", response_class=HTMLResponse)
-async def flow_visualization(request: Request):
-    """Endpoint che espone la visualizzazione del flusso end-to-end con Jinja2 e Mermaid"""
+
+
+@router.get("/project-report", response_class=HTMLResponse)
+async def project_report(request: Request):
+    """Pagina di resoconto completo del progetto"""
     try:
-        # Prepara i dati del template
-        settings = get_settings()
-
-        # Conta sessioni attive
-        async for db in get_db():
-            result = await db.execute(
-                func.count(SessionModel.id)
-            )
-            active_sessions = result.scalar()
-
-        # Renderizza il template
-        return templates.TemplateResponse(
-            "flow_visualization.html",
-            {
-                "request": request,
-                "app_name": settings.app_name,
-                "app_version": settings.app_version,
-                "active_sessions": active_sessions,
-                "debug": settings.debug
-            }
-        )
+        return templates.TemplateResponse("project_report.html", {"request": request})
 
     except Exception as e:
         from app.main import logger
-        logger.error(f"Errore nel rendering del flow visualization: {e}")
+        logger.error(f"Errore nel caricamento del resoconto progetto: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Errore nel caricamento della visualizzazione del flusso: {str(e)}"
+            detail=f"Errore nel caricamento del resoconto progetto: {str(e)}"
         )
+
 
 
 @router.get("/preview", response_class=HTMLResponse)
@@ -827,6 +811,7 @@ async def unified_agent_health_check():
         }
 
 
+
 @router.put("/api/tasks/{task_id}")
 async def update_human_task(task_id: int, task_update: HumanTaskUpdate):
     """Aggiorna una human task - permette di marcare completata"""
@@ -1089,6 +1074,166 @@ async def session_tasks_dashboard(session_id: str, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/session/{session_id}/notes", response_class=HTMLResponse)
+async def session_notes_dashboard(session_id: str, request: Request):
+    """Pagina dashboard per le note di una sessione specifica"""
+    try:
+        async for db in get_db():
+            # Find session
+            stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+            result = await db.execute(stmt)
+            session = result.scalar_one_or_none()
+            if not session:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            # Get all notes for this session (via messages)
+            from app.models.database_models import MessageNoteModel, MessageModel
+            stmt_notes = select(MessageNoteModel).join(MessageModel).where(
+                MessageModel.session_id == session.id
+            ).order_by(MessageNoteModel.created_at.desc())
+
+            result_notes = await db.execute(stmt_notes)
+            notes = result_notes.scalars().all()
+
+            # Prepare data
+            notes_data = []
+            for n in notes:
+                # Re-query with eager load
+                stmt_n = select(MessageNoteModel).options(selectinload(MessageNoteModel.message)).where(MessageNoteModel.id == n.id)
+                res_n = await db.execute(stmt_n)
+                full_note = res_n.scalar_one()
+
+                notes_data.append({
+                    'id': full_note.id,
+                    'rating': full_note.rating,
+                    'note': full_note.note,
+                    'created_by': full_note.created_by,
+                    'created_at': full_note.created_at.strftime('%d/%m/%Y %H:%M'),
+                    'message_preview': full_note.message.message if full_note.message else "Messaggio non trovato"
+                })
+
+            session_info = {
+                'session_id': session.session_id,
+            }
+
+        return templates.TemplateResponse('session_notes.html', {
+            'request': request,
+            'session': session_info,
+            'notes': notes_data
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore nel rendering della dashboard sessione notes {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Message Notes API ---
+
+@router.post("/api/message-notes")
+async def create_message_note(note: MessageNoteCreate):
+    """Crea una nuova nota per un messaggio"""
+    try:
+        async for db in get_db():
+            from app.models.database_models import MessageNoteModel
+            new_note = MessageNoteModel(
+                message_id=note.message_id,
+                rating=note.rating,
+                note=note.note,
+                created_by=note.created_by
+            )
+            db.add(new_note)
+            await db.commit()
+            await db.refresh(new_note)
+            return {"id": new_note.id, "message": "Nota creata con successo"}
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore creazione nota: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/message-notes")
+async def get_message_notes(message_id: Optional[int] = None):
+    """Ottiene le note, opzionalmente filtrate per messaggio"""
+    try:
+        async for db in get_db():
+            from app.models.database_models import MessageNoteModel
+            stmt = select(MessageNoteModel)
+            if message_id:
+                stmt = stmt.where(MessageNoteModel.message_id == message_id)
+            stmt = stmt.order_by(MessageNoteModel.created_at.desc())
+            result = await db.execute(stmt)
+            notes = result.scalars().all()
+
+            return [{
+                "id": n.id,
+                "message_id": n.message_id,
+                "rating": n.rating,
+                "note": n.note,
+                "created_by": n.created_by,
+                "created_at": n.created_at.strftime('%d/%m/%Y %H:%M')
+            } for n in notes]
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore recupero note: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/messages/{message_id}/notes")
+async def get_notes_for_message(message_id: int):
+    """Ottiene le note per un messaggio specifico"""
+    return await get_message_notes(message_id=message_id)
+
+@router.put("/api/message-notes/{note_id}")
+async def update_message_note(note_id: int, update: MessageNoteUpdate):
+    """Aggiorna una nota esistente"""
+    try:
+        async for db in get_db():
+            from app.models.database_models import MessageNoteModel
+            stmt = select(MessageNoteModel).where(MessageNoteModel.id == note_id)
+            result = await db.execute(stmt)
+            note = result.scalar_one_or_none()
+
+            if not note:
+                raise HTTPException(status_code=404, detail="Nota non trovata")
+
+            if update.rating is not None:
+                note.rating = update.rating
+            if update.note is not None:
+                note.note = update.note
+
+            await db.commit()
+            return {"message": "Nota aggiornata"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore aggiornamento nota {note_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/api/message-notes/{note_id}")
+async def delete_message_note(note_id: int):
+    """Elimina una nota"""
+    try:
+        async for db in get_db():
+            from app.models.database_models import MessageNoteModel
+            stmt = select(MessageNoteModel).where(MessageNoteModel.id == note_id)
+            result = await db.execute(stmt)
+            note = result.scalar_one_or_none()
+
+            if not note:
+                raise HTTPException(status_code=404, detail="Nota non trovata")
+
+            await db.delete(note)
+            await db.commit()
+            return {"message": "Nota eliminata"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore eliminazione nota {note_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/api/system-prompts/{prompt_id}")
 async def update_system_prompt(prompt_id: int, prompt: SystemPromptUpdate):
     """Aggiorna un system prompt esistente"""
@@ -1150,6 +1295,7 @@ async def delete_system_prompt(prompt_id: int):
 async def execute_command(command: str):
     """Endpoint API per eseguire comandi del server script"""
     try:
+        from app.main import logger
 
         # Mappa dei comandi disponibili
         available_commands = {
@@ -1214,3 +1360,11 @@ async def execute_command(command: str):
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore nell'esecuzione del comando API {command}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/architecture", response_class=HTMLResponse)
+async def architecture_map(request: Request):
+    """
+    Visualizza la mappa architetturale del sistema
+    """
+    return templates.TemplateResponse("architecture.html", {"request": request})

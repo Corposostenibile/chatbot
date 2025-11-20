@@ -88,3 +88,9 @@ class MessageNoteResponse(BaseModel):
     note: Optional[str]
     created_by: Optional[str]
     created_at: str
+
+
+class MessageNoteUpdate(BaseModel):
+    """Model to update a message note"""
+    rating: Optional[int] = None
+    note: Optional[str] = None

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,7 +24,7 @@
             margin: 0 auto;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             overflow: hidden;
         }
 
@@ -47,16 +48,16 @@
 
         .session-id {
             font-family: 'Monaco', 'Menlo', monospace;
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             padding: 8px 12px;
             border-radius: 6px;
             font-size: 0.9rem;
         }
 
         .back-button {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             padding: 10px 20px;
             border-radius: 8px;
             text-decoration: none;
@@ -65,7 +66,7 @@
         }
 
         .back-button:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.2);
             transform: translateY(-1px);
         }
 
@@ -76,7 +77,7 @@
         }
 
         .meta-item {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
             padding: 15px;
             border-radius: 8px;
         }
@@ -104,11 +105,30 @@
             letter-spacing: 0.5px;
         }
 
-        .lifecycle-nuova_lead { background: #fef3c7; color: #92400e; }
-        .lifecycle-contrassegnato { background: #dbeafe; color: #1e40af; }
-        .lifecycle-in_target { background: #dcfce7; color: #166534; }
-        .lifecycle-link_da_inviare { background: #fce7f3; color: #be185d; }
-        .lifecycle-link_inviato { background: #d1fae5; color: #065f46; }
+        .lifecycle-nuova_lead {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .lifecycle-contrassegnato {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .lifecycle-in_target {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .lifecycle-link_da_inviare {
+            background: #fce7f3;
+            color: #be185d;
+        }
+
+        .lifecycle-link_inviato {
+            background: #d1fae5;
+            color: #065f46;
+        }
 
         .content {
             padding: 30px;
@@ -153,7 +173,7 @@
             background: white;
             padding: 15px 20px;
             border-radius: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
 
         .message-header {
@@ -261,7 +281,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
             align-items: center;
             justify-content: center;
@@ -277,7 +297,7 @@
             padding: 30px;
             max-width: 500px;
             width: 90%;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
         }
 
         .modal-header {
@@ -299,7 +319,8 @@
             font-size: 0.9rem;
         }
 
-        .form-input, .form-textarea {
+        .form-input,
+        .form-textarea {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #d1d5db;
@@ -313,7 +334,8 @@
             min-height: 100px;
         }
 
-        .form-input:focus, .form-textarea:focus {
+        .form-input:focus,
+        .form-textarea:focus {
             outline: none;
             border-color: #4f46e5;
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
@@ -389,6 +411,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
@@ -440,43 +463,49 @@
 
             <div class="task-actions">
                 <button class="task-link-btn" onclick="openTaskModal()">+ Aggiungi Task</button>
-                <a href="/session/{{ session.session_id }}/tasks" class="task-link-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Visualizza Tutte le Task</a>
+                <a href="/session/{{ session.session_id }}/tasks" class="task-link-btn"
+                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">Visualizza Tutte le Task</a>
+                <a href="/session/{{ session.session_id }}/notes" class="task-link-btn"
+                    style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">📝 Visualizza Note</a>
             </div>
 
             <div class="conversation-container">
                 {% if entries %}
-                    {% for entry in entries %}
-                        {% if entry.type == 'lifecycle_event' %}
-                            <div style="margin: 10px 0; text-align:center;">
-                                <span class="lifecycle-badge lifecycle-{{ entry.new_lifecycle.lower() }}">Transizione: {{ entry.new_lifecycle.replace('_', ' ') }}</span>
-                            </div>
-                        {% elif entry.type == 'message' %}
-                            <div class="message message-{{ entry.role }}" {% if entry.role == 'assistant' %}data-message-id="{{ entry.id }}" data-lifecycle="{{ entry.lifecycle }}"{% endif %}>
-                        <div class="message-avatar">
-                            {% if entry.role == 'user' %}
-                                👤
-                            {% else %}
-                                🤖
-                            {% endif %}
-                        </div>
-                        <div class="message-content">
-                            <div class="message-header">
-                                <span class="message-role">{{ entry.role.title() }}</span>
-                                {% if entry.role == 'assistant' %}
-                                    <span class="note-indicator" id="note-indicator-{{ entry.id }}" style="margin-left:8px; font-size:0.85rem; color:#6b7280;">(caricamento...)</span>
-                                {% endif %}
-                                <span class="message-time">{{ entry.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
-                            </div>
-                            <div class="message-text">{{ entry.message }}</div>
-                        </div>
-                    </div>
+                {% for entry in entries %}
+                {% if entry.type == 'lifecycle_event' %}
+                <div style="margin: 10px 0; text-align:center;">
+                    <span class="lifecycle-badge lifecycle-{{ entry.new_lifecycle.lower() }}">Transizione: {{
+                        entry.new_lifecycle.replace('_', ' ') }}</span>
+                </div>
+                {% elif entry.type == 'message' %}
+                <div class="message message-{{ entry.role }}" {% if entry.role=='assistant'
+                    %}data-message-id="{{ entry.id }}" data-lifecycle="{{ entry.lifecycle }}" {% endif %}>
+                    <div class="message-avatar">
+                        {% if entry.role == 'user' %}
+                        👤
+                        {% else %}
+                        🤖
                         {% endif %}
-                    {% endfor %}
-                {% else %}
-                    <div class="empty-state">
-                        <h3>📭 Nessun messaggio trovato</h3>
-                        <p>Questa sessione non ha ancora messaggi.</p>
                     </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-role">{{ entry.role.title() }}</span>
+                            {% if entry.role == 'assistant' %}
+                            <span class="note-indicator" id="note-indicator-{{ entry.id }}"
+                                style="margin-left:8px; font-size:0.85rem; color:#6b7280;">(caricamento...)</span>
+                            {% endif %}
+                            <span class="message-time">{{ entry.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
+                        </div>
+                        <div class="message-text">{{ entry.message }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <h3>📭 Nessun messaggio trovato</h3>
+                    <p>Questa sessione non ha ancora messaggi.</p>
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -497,14 +526,16 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Descrizione *</label>
-                    <textarea class="form-textarea" id="taskDesc" placeholder="Descrizione della task" required></textarea>
+                    <textarea class="form-textarea" id="taskDesc" placeholder="Descrizione della task"
+                        required></textarea>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Assegnato a (opzionale)</label>
                     <input type="email" class="form-input" id="taskAssigned" placeholder="email@example.com">
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="modal-btn modal-btn-secondary" onclick="closeTaskModal()">Annulla</button>
+                    <button type="button" class="modal-btn modal-btn-secondary"
+                        onclick="closeTaskModal()">Annulla</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Crea Task</button>
                 </div>
             </form>
@@ -530,14 +561,17 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Note</label>
-                    <textarea id="reviewNote" class="form-textarea" placeholder="Perché questo voto?" rows="4"></textarea>
+                    <textarea id="reviewNote" class="form-textarea" placeholder="Perché questo voto?"
+                        rows="4"></textarea>
                 </div>
-                <div id="existingNotes" style="margin-top:10px; max-height:160px; overflow:auto; border-radius:8px; background:#fafafa; padding:8px; border:1px solid #e5e7eb; display:none">
+                <div id="existingNotes"
+                    style="margin-top:10px; max-height:160px; overflow:auto; border-radius:8px; background:#fafafa; padding:8px; border:1px solid #e5e7eb; display:none">
                     <strong>Note esistenti:</strong>
                     <div id="existingNotesList"></div>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="modal-btn modal-btn-secondary" onclick="closeReviewModal()">Annulla</button>
+                    <button type="button" class="modal-btn modal-btn-secondary"
+                        onclick="closeReviewModal()">Annulla</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Salva voto</button>
                 </div>
             </form>
@@ -577,7 +611,7 @@
             try {
                 const resp = await fetch('/api/tasks', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         title,
                         description,
@@ -656,7 +690,7 @@
             try {
                 const resp = await fetch('/api/message-notes', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message_id: messageId, rating, note, created_by: 'operator' })
                 });
                 if (!resp.ok) throw new Error('Failed to save review');
@@ -714,4 +748,5 @@
         window.addEventListener('load', loadNoteCount);
     </script>
 </body>
+
 </html>

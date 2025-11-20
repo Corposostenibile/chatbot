@@ -1,171 +1,497 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>System Prompts - {{ app_version }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-        .fade-in {
-            animation: fadeIn 0.3s ease-in;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
         }
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 50;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-height: 80vh;
         }
-        .modal.show {
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .page-title h1 {
+            font-size: 1.8rem;
+            margin-bottom: 5px;
+        }
+
+        .page-subtitle {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+
+        .prompts-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .prompt-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .prompt-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            border-color: #cbd5e1;
+        }
+
+        .prompt-card.active {
+            border-left: 4px solid #10b981;
+            background: #f0fdf4;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .prompt-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #1e293b;
             display: flex;
             align-items: center;
+            gap: 10px;
+        }
+
+        .version-badge {
+            background: #e2e8f0;
+            color: #475569;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-family: monospace;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .prompt-desc {
+            color: #64748b;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .prompt-content-preview {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 20px;
+            max-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .card-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 15px;
+        }
+
+        .action-btn {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #64748b;
+        }
+
+        .action-btn:hover {
+            background: #f1f5f9;
+            color: #1e293b;
+        }
+
+        .action-btn.edit:hover {
+            color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .action-btn.activate:hover {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .action-btn.delete:hover {
+            color: #dc2626;
+            background: #fef2f2;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
             justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+
+        .modal-header {
+            padding: 20px 30px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #475569;
+        }
+
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .form-input,
+        .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-textarea {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .modal-footer {
+            padding: 20px 30px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            background: #f8fafc;
+            border-radius: 0 0 16px 16px;
+        }
+
+        .btn-secondary {
+            background: white;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center py-4">
-                <div class="flex items-center">
-                    <h1 class="text-2xl font-bold text-gray-900">System Prompts Manager</h1>
-                    <span class="ml-2 text-sm text-gray-500">v{{ app_version }}</span>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="page-title">
+                    <h1>🧠 System Prompts Manager</h1>
+                    <div class="page-subtitle">Gestione e versioning dei prompt AI • v{{ app_version }}</div>
                 </div>
-                <nav class="flex space-x-4">
-                    <a href="/" class="text-gray-600 hover:text-gray-900">Dashboard</a>
-                    <a href="/sessions" class="text-gray-600 hover:text-gray-900">Sessioni</a>
-                    <a href="/flow" class="text-gray-600 hover:text-gray-900">Flusso</a>
-                    <a href="/system-prompts" class="text-blue-600 font-medium">Prompts</a>
+                <nav class="nav-links">
+                    <a href="/" class="nav-link">Dashboard</a>
+                    <a href="/sessions" class="nav-link">Sessioni</a>
+                    <a href="/project-report" class="nav-link">Report</a>
+                    <a href="/system-prompts" class="nav-link active">Prompts</a>
                 </nav>
             </div>
         </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Actions Bar -->
-        <div class="mb-6 flex justify-between items-center">
-            <div>
-                <h2 class="text-xl font-semibold text-gray-900">Gestione System Prompts</h2>
-                <p class="text-gray-600 mt-1">Crea, modifica e attiva i prompt di sistema per l'AI</p>
+        <div class="content">
+            <div class="actions-bar">
+                <div>
+                    <h2 style="font-size: 1.5rem; color: #1e293b; margin-bottom: 5px;">Libreria Prompt</h2>
+                    <p style="color: #64748b;">Gestisci i comportamenti dell'Assistente AI</p>
+                </div>
+                <button onclick="openCreateModal()" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Nuovo Prompt
+                </button>
             </div>
-            <button onclick="openCreateModal()" 
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                Nuovo Prompt
-            </button>
-        </div>
 
-        <!-- Prompts List -->
-        <div id="prompts-list" class="space-y-4">
-            {% for prompt in prompts %}
-            <div class="bg-white rounded-lg shadow-sm border p-6 fade-in">
-                <div class="flex justify-between items-start mb-4">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-3 mb-2">
-                            <h3 class="text-lg font-semibold text-gray-900">{{ prompt.name }}</h3>
-                            {% if prompt.is_active %}
-                            <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                                ATTIVO
-                            </span>
-                            {% endif %}
-                            <span class="text-sm text-gray-500">v{{ prompt.version }}</span>
+            <div id="prompts-list" class="prompts-grid">
+                {% for prompt in prompts %}
+                <div class="prompt-card {% if prompt.is_active %}active{% endif %}">
+                    <div class="card-header">
+                        <div class="prompt-title">
+                            {{ prompt.name }}
+                            <span class="version-badge">v{{ prompt.version }}</span>
                         </div>
-                        {% if prompt.description %}
-                        <p class="text-gray-600 mb-3">{{ prompt.description }}</p>
+                        {% if prompt.is_active %}
+                        <span class="status-badge status-active">
+                            <i class="fas fa-check-circle"></i> Attivo
+                        </span>
                         {% endif %}
-                        <div class="bg-gray-50 rounded p-3 text-sm text-gray-700 font-mono">
-                            {{ prompt.content | truncate(300) }}
-                        </div>
                     </div>
-                    <div class="flex space-x-2 ml-4">
-                        <button onclick="editPrompt({{ prompt.id }}, '{{ prompt.name }}', '{{ prompt.version }}', '{{ prompt.description or '' }}')"
-                                class="text-blue-600 hover:text-blue-800 p-2">
-                            ✏️
+
+                    {% if prompt.description %}
+                    <p class="prompt-desc">{{ prompt.description }}</p>
+                    {% endif %}
+
+                    <div class="prompt-content-preview">{{ prompt.content }}</div>
+
+                    <div class="card-actions">
+                        <button
+                            onclick="editPrompt({{ prompt.id }}, '{{ prompt.name }}', '{{ prompt.version }}', '{{ prompt.description or '' }}')"
+                            class="action-btn edit" title="Modifica">
+                            <i class="fas fa-edit"></i>
                         </button>
+
                         {% if not prompt.is_active %}
-                        <button onclick="activatePrompt({{ prompt.id }})"
-                                class="text-green-600 hover:text-green-800 p-2">
-                            ✅
+                        <button onclick="activatePrompt({{ prompt.id }})" class="action-btn activate" title="Attiva">
+                            <i class="fas fa-play"></i>
                         </button>
                         {% endif %}
-                        <button onclick="deletePrompt({{ prompt.id }}, '{{ prompt.name }}')"
-                                class="text-red-600 hover:text-red-800 p-2">
-                            🗑️
+
+                        <button onclick="deletePrompt({{ prompt.id }}, '{{ prompt.name }}')" class="action-btn delete"
+                            title="Elimina">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
-                </div>
-                <div class="text-xs text-gray-500">
-                    Creato: {{ prompt.created_at.strftime('%d/%m/%Y %H:%M') }} | 
-                    Modificato: {{ prompt.updated_at.strftime('%d/%m/%Y %H:%M') }}
-                </div>
-            </div>
-            {% endfor %}
-        </div>
 
-        {% if not prompts %}
-        <div class="text-center py-12">
-            <p class="text-gray-500">Nessun prompt trovato. Crea il primo prompt per iniziare.</p>
+                    <div
+                        style="margin-top: 15px; font-size: 0.8rem; color: #94a3b8; display: flex; justify-content: space-between;">
+                        <span>Creato: {{ prompt.created_at.strftime('%d/%m/%Y') }}</span>
+                        <span>Ultima modifica: {{ prompt.updated_at.strftime('%d/%m/%Y') }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if not prompts %}
+            <div class="empty-state">
+                <i class="fas fa-robot" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.5;"></i>
+                <h3>Nessun prompt trovato</h3>
+                <p>Crea il primo System Prompt per definire il comportamento dell'AI.</p>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
-    </main>
+    </div>
 
     <!-- Create/Edit Modal -->
-    <div id="prompt-modal" class="modal">
-        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 id="modal-title" class="text-lg font-semibold">Nuovo Prompt</h3>
-                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">✕</button>
-                </div>
-                
+    <div id="prompt-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title" class="modal-title">Nuovo Prompt</h3>
+                <button onclick="closeModal()" class="modal-close">&times;</button>
+            </div>
+
+            <div class="modal-body">
                 <form id="prompt-form" onsubmit="savePrompt(event)">
                     <input type="hidden" id="prompt-id" name="id">
-                    
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-                        <input type="text" id="prompt-name" name="name" required
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                    <div class="form-group">
+                        <label class="form-label">Nome Prompt *</label>
+                        <input type="text" id="prompt-name" name="name" required class="form-input"
+                            placeholder="Es. Assistente Vendite">
                     </div>
-                    
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Versione</label>
-                        <input type="text" id="prompt-version" name="version" value="1.0"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                    <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                        <div class="form-group">
+                            <label class="form-label">Versione</label>
+                            <input type="text" id="prompt-version" name="version" value="1.0" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Descrizione</label>
+                            <input type="text" id="prompt-description" name="description" class="form-input"
+                                placeholder="Breve descrizione dello scopo">
+                        </div>
                     </div>
-                    
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Descrizione</label>
-                        <input type="text" id="prompt-description" name="description"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Contenuto del Prompt *</label>
-                        <textarea id="prompt-content" name="content" rows="15" required
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
-                    </div>
-                    
-                    <div class="flex justify-end space-x-3">
-                        <button type="button" onclick="closeModal()" 
-                                class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
-                            Annulla
-                        </button>
-                        <button type="submit" 
-                                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                            Salva
-                        </button>
+
+                    <div class="form-group">
+                        <label class="form-label">Contenuto del Prompt *</label>
+                        <textarea id="prompt-content" name="content" rows="15" required class="form-textarea"
+                            placeholder="Inserisci qui le istruzioni per l'AI..."></textarea>
                     </div>
                 </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" onclick="closeModal()" class="btn btn-secondary">Annulla</button>
+                <button type="submit" form="prompt-form" class="btn btn-primary">Salva Prompt</button>
             </div>
         </div>
     </div>
@@ -178,7 +504,7 @@
             document.getElementById('modal-title').textContent = 'Nuovo Prompt';
             document.getElementById('prompt-form').reset();
             document.getElementById('prompt-id').value = '';
-            document.getElementById('prompt-modal').classList.add('show');
+            document.getElementById('prompt-modal').classList.add('active');
         }
 
         function editPrompt(id, name, version, description) {
@@ -188,13 +514,13 @@
             document.getElementById('prompt-name').value = name;
             document.getElementById('prompt-version').value = version;
             document.getElementById('prompt-description').value = description;
-            
+
             // Carica il contenuto completo del prompt
             fetch(`/api/system-prompts/${id}`)
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('prompt-content').value = data.content;
-                    document.getElementById('prompt-modal').classList.add('show');
+                    document.getElementById('prompt-modal').classList.add('active');
                 })
                 .catch(error => {
                     alert('Errore nel caricamento del prompt: ' + error);
@@ -202,13 +528,13 @@
         }
 
         function closeModal() {
-            document.getElementById('prompt-modal').classList.remove('show');
+            document.getElementById('prompt-modal').classList.remove('active');
             editingPromptId = null;
         }
 
         function savePrompt(event) {
             event.preventDefault();
-            
+
             const formData = new FormData(event.target);
             const data = {
                 name: formData.get('name'),
@@ -216,10 +542,10 @@
                 version: formData.get('version'),
                 description: formData.get('description')
             };
-            
+
             const url = editingPromptId ? `/api/system-prompts/${editingPromptId}` : '/api/system-prompts';
             const method = editingPromptId ? 'PUT' : 'POST';
-            
+
             fetch(url, {
                 method: method,
                 headers: {
@@ -227,18 +553,18 @@
                 },
                 body: JSON.stringify(data)
             })
-            .then(response => response.json())
-            .then(result => {
-                if (result.message || result.id) {
-                    closeModal();
-                    location.reload(); // Ricarica la pagina per aggiornare la lista
-                } else {
-                    alert('Errore nel salvataggio: ' + JSON.stringify(result));
-                }
-            })
-            .catch(error => {
-                alert('Errore: ' + error);
-            });
+                .then(response => response.json())
+                .then(result => {
+                    if (result.message || result.id) {
+                        closeModal();
+                        location.reload();
+                    } else {
+                        alert('Errore nel salvataggio: ' + JSON.stringify(result));
+                    }
+                })
+                .catch(error => {
+                    alert('Errore: ' + error);
+                });
         }
 
         function activatePrompt(id) {
@@ -246,17 +572,17 @@
                 fetch(`/api/system-prompts/${id}/activate`, {
                     method: 'POST'
                 })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.message) {
-                        location.reload();
-                    } else {
-                        alert('Errore nell\'attivazione: ' + JSON.stringify(result));
-                    }
-                })
-                .catch(error => {
-                    alert('Errore: ' + error);
-                });
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.message) {
+                            location.reload();
+                        } else {
+                            alert('Errore nell\'attivazione: ' + JSON.stringify(result));
+                        }
+                    })
+                    .catch(error => {
+                        alert('Errore: ' + error);
+                    });
             }
         }
 
@@ -265,26 +591,27 @@
                 fetch(`/api/system-prompts/${id}`, {
                     method: 'DELETE'
                 })
-                .then(response => response.json())
-                .then(result => {
-                    if (result.message) {
-                        location.reload();
-                    } else {
-                        alert('Errore nell\'eliminazione: ' + JSON.stringify(result));
-                    }
-                })
-                .catch(error => {
-                    alert('Errore: ' + error);
-                });
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.message) {
+                            location.reload();
+                        } else {
+                            alert('Errore nell\'eliminazione: ' + JSON.stringify(result));
+                        }
+                    })
+                    .catch(error => {
+                        alert('Errore: ' + error);
+                    });
             }
         }
 
         // Chiudi modal cliccando fuori
-        document.getElementById('prompt-modal').addEventListener('click', function(e) {
+        document.getElementById('prompt-modal').addEventListener('click', function (e) {
             if (e.target === this) {
                 closeModal();
             }
         });
     </script>
 </body>
+
 </html>

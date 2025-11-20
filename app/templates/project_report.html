@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resoconto Completo - Chatbot Corposostenibile</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        .header-bg {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 80px 20px;
+            color: white;
+            text-align: center;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: -50px auto 60px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .back-link {
+            position: absolute;
+            top: -100px;
+            left: 20px;
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            backdrop-filter: blur(5px);
+            transition: background 0.3s;
+        }
+
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .report-card {
+            background: white;
+            border-radius: 16px;
+            padding: 50px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: white;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: #1e293b;
+            margin: 40px 0 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h3 {
+            font-size: 1.3rem;
+            color: #334155;
+            margin: 25px 0 15px;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            color: #475569;
+            margin: 20px 0 10px;
+        }
+
+        p {
+            margin-bottom: 15px;
+            color: #4b5563;
+        }
+
+        ul {
+            list-style: none;
+            margin-bottom: 20px;
+        }
+
+        ul li {
+            margin-bottom: 8px;
+            padding-left: 25px;
+            position: relative;
+            color: #4b5563;
+        }
+
+        ul li::before {
+            content: '•';
+            color: #3b82f6;
+            font-weight: bold;
+            position: absolute;
+            left: 5px;
+            font-size: 1.2em;
+        }
+
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+            color: #0f172a;
+        }
+
+        .phase-badge {
+            display: inline-block;
+            background: #e0f2fe;
+            color: #0284c7;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .final-results {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 50px;
+        }
+
+        .final-results h2 {
+            color: #166534;
+            border-bottom-color: #bbf7d0;
+            margin-top: 0;
+        }
+
+        .final-results ul li::before {
+            content: '✓';
+            color: #166534;
+        }
+
+        @media (max-width: 768px) {
+            .report-card {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            h2 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header-bg">
+        <div class="container" style="margin: 0 auto;">
+            <a href="/" class="back-link">← Dashboard</a>
+            <h1>Resoconto Completo</h1>
+            <p style="color: rgba(255,255,255,0.8);">Stato dell'arte del progetto Chatbot Corposostenibile</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="report-card">
+
+            <span class="phase-badge">Overview</span>
+            <h2>🌍 Panoramica Generale del Progetto</h2>
+            <p>Il progetto consiste nello sviluppo di un <strong>Chatbot Avanzato per Corposostenibile</strong>,
+                progettato per automatizzare e ottimizzare l'interazione con i lead e i clienti.</p>
+            <p>Il sistema opera come un backend intelligente che:</p>
+            <ul>
+                <li><strong>Riceve richieste da respond.io</strong>: Agisce come cervello centrale elaborando i messaggi
+                    provenienti dai canali di messaggistica (WhatsApp, Messenger, ecc.) integrati via respond.io.</li>
+                <li><strong>Gestisce il Ciclo di Vita dell'Utente</strong>: Segue l'utente attraverso un funnel definito
+                    (da <code>NUOVA_LEAD</code> a <code>IN_TARGET</code>), adattando le risposte e le strategie di
+                    comunicazione in base allo stato corrente.</li>
+                <li><strong>Fornisce Risposte AI Contestualizzate</strong>: Utilizza modelli AI avanzati per generare
+                    risposte naturali, empatiche e persuasive, guidando l'utente verso l'obiettivo di conversione (es.
+                    prenotazione consulenza).</li>
+            </ul>
+            <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+            <hr style="margin: 30px 0; border: 0; border-top: 1px solid #e2e8f0;">
+
+            <span class="phase-badge">Architecture</span>
+            <h2>🗺️ Mappa Concettuale del Sistema</h2>
+            <p>Il seguente diagramma illustra l'architettura logica del sistema, come definito nella fase di
+                progettazione:</p>
+
+            <div
+                style="background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 40px; text-align: center;">
+                <i class="fas fa-sitemap" style="font-size: 3rem; color: #0284c7; margin-bottom: 20px;"></i>
+                <h3 style="margin-bottom: 10px;">Mappa Architetturale Completa</h3>
+                <p style="color: #64748b; margin-bottom: 20px;">Visualizza il diagramma dettagliato dell'architettura
+                    del sistema, inclusi i flussi di dati e le interazioni tra i componenti.</p>
+                <a href="/architecture"
+                    style="display: inline-block; background: #0284c7; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 500; transition: background 0.2s;">
+                    <i class="fas fa-external-link-alt"></i> Apri Mappa Architetturale
+                </a>
+            </div>
+
+            <span class="phase-badge">Fase 1</span>
+            <h2>🏗️ Architettura Base e Setup Iniziale</h2>
+            <p>Il progetto inizia con la configurazione dell'ambiente di sviluppo utilizzando <strong>Poetry</strong>
+                per la gestione delle dipendenze Python. Viene implementato un sistema di containerizzazione
+                <strong>Docker</strong> per garantire la riproducibilità dell'ambiente.
+            </p>
+
+            <span class="phase-badge">Fase 2</span>
+            <h2>🤖 Implementazione del Sistema di Gestione del Ciclo di Vita</h2>
+            <p>Viene sviluppato un sistema completo per la gestione del ciclo di vita. Il sistema gestisce le seguenti
+                fasi:</p>
+            <ul>
+                <li><code>NUOVA_LEAD</code>: Lead appena acquisito</li>
+                <li><code>CONTRASSEGNATO</code>: Lead che ha mostrato interesse</li>
+                <li><code>IN_TARGET</code>: Lead qualificato per il servizio</li>
+                <li><code>LINK_DA_INVIARE</code>: Pronto per ricevere link consulenza</li>
+                <li><code>LINK_INVIATO</code>: link inviato con successo</li>
+            </ul>
+            <p>Il sistema utilizza un approccio dinamico con script specifici per ciascuna fase e trigger automatici di
+                transizione basati sull'interazione con l'utente.</p>
+
+            <span class="phase-badge">Fase 3</span>
+            <h2>🗄️ Persistenza dei Dati e Database</h2>
+            <p>Viene implementata la persistenza completa utilizzando <strong>PostgreSQL</strong> come database
+                principale. Il sistema utilizza <strong>SQLAlchemy</strong> come ORM per gestire:</p>
+            <ul>
+                <li><strong>Sessioni di conversazione</strong>: Memorizzazione di tutte le interazioni utente</li>
+                <li><strong>Messaggi</strong>: Cronologia completa delle conversazioni</li>
+                <li><strong>Metadati</strong>: Informazioni sul ciclo di vita e timestamp</li>
+                <li><strong>System Prompts</strong>: Gestione dinamica dei prompt di sistema con versioning</li>
+                <li><strong>Human Tasks</strong>: Sistema di task per intervento umano con associazione a sessioni
+                    specifiche</li>
+            </ul>
+            <p>Vengono creati modelli Pydantic per la validazione dei dati e gestione sicura delle operazioni database.
+            </p>
+
+            <span class="phase-badge">Fase 4</span>
+            <h2>🚀 Integrazione AI e Sistema dei Prompt</h2>
+            <p>L'integrazione con <strong>Google Gemini AI</strong> viene ottimizzata per fornire risposte più naturali
+                e coinvolgenti attraverso un sistema sofisticato di prompt statici e dinamici.</p>
+
+            <h3>Prompt Statico di Sistema</h3>
+            <p>Viene definito un <code>SYSTEM_PROMPT</code> principale che stabilisce l'identità dell'AI e le regole
+                fondamentali:</p>
+            <ul>
+                <li><strong>Identità</strong>: Empatico, professionale ma colloquiale, rappresentante di
+                    Corposostenibile</li>
+                <li><strong>Stile conversazionale</strong>: Risposte brevi (2-3 righe), uso occasionale di emoji, tono
+                    caldo e amichevole</li>
+                <li><strong>Regole generali</strong>: Sempre fare domande per mantenere attivo il dialogo, non
+                    menzionare mai i lifecycle tecnici</li>
+                <li><strong>Formato risposta</strong>: JSON strutturato obbligatorio con messaggi, decisioni lifecycle e
+                    confidenza</li>
+            </ul>
+
+            <h3>Script Dinamici per Lifecycle</h3>
+            <p>Per ogni fase del ciclo di vita vengono definiti <code>LIFECYCLE_SCRIPTS</code> specifici contenenti:</p>
+            <ul>
+                <li><strong>Script guida</strong>: Testo narrativo che l'AI deve seguire come base per le risposte</li>
+                <li><strong>Obiettivo della fase</strong>: Scopo specifico da raggiungere in quella fase</li>
+                <li><strong>Indicatori di transizione</strong>: Segni che indicano quando passare alla fase successiva
+                </li>
+                <li><strong>Prossima fase</strong>: Lifecycle target per la transizione</li>
+            </ul>
+
+            <h3>Sistema di Snippet di Messaggi</h3>
+            <p>Viene implementato un sistema avanzato di snippet pre-scritti per migliorare la qualità e consistenza
+                delle risposte:</p>
+            <ul>
+                <li><strong>Snippet Organizzati per Lifecycle</strong>: Raccolta di messaggi specifici per ogni fase
+                </li>
+                <li><strong>Snippet Generici</strong>: Messaggi per obiezioni comuni (budget, costi, informazioni sul
+                    servizio)</li>
+                <li><strong>Primo Messaggio Automatico</strong>: Sistema di risposta fissa per il primo contatto che
+                    include automaticamente snippet appropriati</li>
+                <li><strong>Risorse di Supporto</strong>: Link diretti a materiali informativi (Bibbia del Cortisolo,
+                    Sonno, Digestione)</li>
+                <li><strong>Info Professionali</strong>: Descrizioni standardizzate dei servizi offerti</li>
+                <li><strong>Gestione Tardiva</strong>: Risposte predefinite per gestire ritardi nelle comunicazioni</li>
+            </ul>
+
+            <h3>Costruzione Dinamica dei Prompt</h3>
+            <p>Il sistema genera prompt unificati in tempo reale combinando:</p>
+            <ul>
+                <li>Contesto statico (System Prompt)</li>
+                <li>Contesto dinamico (Script Lifecycle)</li>
+                <li>Snippet Disponibili</li>
+                <li>Cronologia conversazione (ultimi 10 messaggi)</li>
+                <li>Messaggio utente</li>
+                <li>Istruzioni specifiche</li>
+            </ul>
+
+            <h3>Decisioni AI sul Lifecycle</h3>
+            <p>L'AI prende decisioni automatiche sulla progressione attraverso:</p>
+            <ul>
+                <li><strong>Valutazione confidenza</strong>: Punteggio da 0.0 a 1.0 per ogni decisione</li>
+                <li><strong>Soglia di transizione</strong>: Cambio lifecycle solo con confidenza ≥ 0.7</li>
+                <li><strong>Ragionamento esplicito</strong>: Spiegazione delle decisioni per tracciabilità</li>
+                <li><strong>Transizioni condizionate</strong>: Passaggio automatico basato sugli indicatori definiti
+                </li>
+            </ul>
+
+            <h3>Funzionalità Avanzate dell'AI</h3>
+            <ul>
+                <li><strong>Prompting avanzato</strong>: Istruzioni specifiche per interazioni umane</li>
+                <li><strong>Gestione della confidenza</strong>: Valutazione dell'affidabilità delle decisioni AI</li>
+                <li><strong>Logging dettagliato</strong>: Tracciamento completo delle risposte e decisioni</li>
+                <li><strong>Supporto messaggi multipli</strong>: Possibilità di fornire multipli messaggi in un unico
+                    output con delay controllati</li>
+                <li><strong>Batch Waiting</strong>: Sistema di aggregazione messaggi per evitare chiamate AI multiple in
+                    sequenza rapida (default 60s)</li>
+            </ul>
+
+            <span class="phase-badge">Fase 5</span>
+            <h2>🌐 Interfaccia Web e Template</h2>
+            <p>Viene sviluppata un'interfaccia web completa utilizzando FastAPI con Jinja2 per il rendering dei
+                template:</p>
+            <ul>
+                <li><strong>Endpoint /preview</strong>: Interfaccia di test per la rotta principale /chat</li>
+                <li><strong>Template HTML</strong>: Pagine web per l'interazione e il monitoraggio</li>
+                <li><strong>Dashboard di monitoraggio</strong>: Visualizzazione dello stato del sistema</li>
+                <li><strong>Gestione sessioni</strong>: Interfaccia per visualizzare le conversazioni salvate</li>
+                <li><strong>Gestione System Prompts</strong>: Pagina dedicata per modificare i prompt di sistema</li>
+                <li><strong>Dashboard Human Tasks</strong>: Interfaccia completa per gestire task di intervento umano
+                </li>
+                <li><strong>Pagine Session Tasks</strong>: Visualizzazioni specifiche per task associati a singole
+                    sessioni</li>
+            </ul>
+
+            <span class="phase-badge">Fase 6</span>
+            <h2>🐳 Infrastruttura di Produzione Base</h2>
+            <p>La configurazione di produzione include:</p>
+            <ul>
+                <li><strong>Docker Compose</strong>: Orchestrazione completa dei servizi</li>
+                <li><strong>Configurazione porte</strong>: Mapping corretto per l'ambiente di produzione</li>
+                <li><strong>Script di gestione</strong>: Automazione completa delle operazioni server</li>
+            </ul>
+
+            <span class="phase-badge">Fase 7</span>
+            <h2>🌐 Configurazione Webhook con Dominio Pubblico e SSL</h2>
+            <p>Viene implementato il sistema completo per ricevere webhook esterni da respond.io attraverso un dominio
+                pubblico sicuro:</p>
+            <ul>
+                <li><strong>Dominio DuckDNS</strong>: Configurazione del dominio
+                    <code>corposostenibile.duckdns.org</code>
+                </li>
+                <li><strong>Nginx Reverse Proxy</strong>: Setup di Nginx come proxy inverso</li>
+                <li><strong>Certificato SSL Let's Encrypt</strong>: Installazione e configurazione automatica di
+                    certificati SSL gratuiti</li>
+                <li><strong>Integrazione Webhook respond.io</strong>: Configurazione degli endpoint per ricevere webhook
+                </li>
+                <li><strong>Sicurezza e Autenticazione</strong>: Meccanismi di sicurezza per validare i webhook in
+                    entrata</li>
+            </ul>
+
+            <span class="phase-badge">Fase 8</span>
+            <h2>📊 Dashboard di Monitoraggio e Sessioni</h2>
+            <p>Viene implementata una dashboard completa per la visualizzazione dei dati:</p>
+            <ul>
+                <li><strong>Dashboard sessioni</strong>: Interfaccia web per esplorare tutte le conversazioni</li>
+                <li><strong>Visualizzazione conversazioni</strong>: Cronologia completa delle interazioni</li>
+                <li><strong>Monitoraggio stato</strong>: Controlli automatici di health e performance</li>
+                <li><strong>Gestione risorse</strong>: Monitoraggio dell'utilizzo del sistema</li>
+                <li><strong>Gestione System Prompts</strong>: Interfaccia per modificare e versionare i prompt AI</li>
+            </ul>
+
+            <span class="phase-badge">Fase 9</span>
+            <h2>🛠️ Script di Gestione Completa</h2>
+
+            <h3>Sviluppo Locale con local.sh</h3>
+            <ul>
+                <li>Setup Automatico ambiente e DB Docker</li>
+                <li>Virtual Environment e dipendenze Poetry</li>
+                <li>Configurazione .env.local automatica</li>
+                <li>Migrazioni Database con Alembic</li>
+                <li>Comandi di Sviluppo (test, linting, format)</li>
+            </ul>
+
+            <h3>Produzione con server.sh</h3>
+            <ul>
+                <li>Gestione Server (start/stop/monitor)</li>
+                <li>SSL Automation (Let's Encrypt)</li>
+                <li>Monitoraggio Health e Troubleshooting</li>
+                <li>Manutenzione e Aggiornamenti</li>
+            </ul>
+
+            <span class="phase-badge">Fase 10</span>
+            <h2>🔧 Refactoring e Ottimizzazioni Finali</h2>
+            <ul>
+                <li><strong>Migrazione a ORM</strong>: Sostituzione query raw con SQLAlchemy</li>
+                <li><strong>Pulizia template</strong>: Utilizzo Jinja2Templates integrato</li>
+                <li><strong>Refactoring UnifiedAgent</strong>: Estrazione metodi helper</li>
+                <li><strong>Gestione Timezone</strong>: Risoluzione problemi datetime nei modelli</li>
+            </ul>
+
+            <span class="phase-badge">Fase 11</span>
+            <h2>📚 Documentazione e Testing</h2>
+            <ul>
+                <li>Documentazione tecnica e guide deployment</li>
+                <li>Script di test automatici</li>
+                <li>Documentazione flusso end-to-end</li>
+                <li>Documentazione API interattiva (Swagger/OpenAPI)</li>
+            </ul>
+
+            <span class="phase-badge">Fase 12</span>
+            <h2>🧑‍💼 Sistema di Gestione Task Umani</h2>
+            <p>Viene implementato un sistema completo per la gestione di task di intervento umano, permettendo all'AI di
+                richiedere assistenza professionale quando necessario.</p>
+
+            <h3>Modello Database Human Tasks</h3>
+            <ul>
+                <li>Campi principali: title, description, status, assigned_to, completed, session_id</li>
+                <li>Relazioni dirette con le sessioni</li>
+                <li>Metadata JSON e Timestamp automatici</li>
+            </ul>
+
+            <h3>Integrazione AI e Blocco Conversazionale</h3>
+            <ul>
+                <li><strong>Creazione Automatica</strong>: L'AI genera task basati sul contesto</li>
+                <li><strong>Blocco del Flusso</strong>: Sospensione risposte automatiche se esiste task aperto</li>
+                <li><strong>Notifiche Non-Bloccanti</strong>: Banner nell'interfaccia chat</li>
+            </ul>
+
+            <h3>API Endpoints Completa</h3>
+            <ul>
+                <li>CRUD completo per Human Tasks (POST, GET, PUT)</li>
+                <li>Endpoint specifici per task di sessione</li>
+            </ul>
+
+            <h3>Interfacce Web Avanzate</h3>
+            <ul>
+                <li><strong>Human Tasks Dashboard</strong>: Vista generale con filtri</li>
+                <li><strong>Session Tasks Page</strong>: Vista specifica per conversazione</li>
+                <li><strong>Modali Interattive</strong>: Dettagli completi task</li>
+                <li><strong>Toggle Completamento</strong>: Interfaccia intuitiva</li>
+                <li><strong>Badge di Stato</strong>: Indicatori visivi chiari</li>
+            </ul>
+
+            <span class="phase-badge">Fase 13</span>
+            <h2>📝 Sistema di Feedback e Note sui Messaggi</h2>
+            <p>È stato implementato un sistema di feedback granulare che permette ai coordinatori e agli sviluppatori di
+                annotare specifici messaggi dell'AI per monitorare la qualità e pianificare miglioramenti.</p>
+
+            <h3>Modello Database Message Notes</h3>
+            <ul>
+                <li><strong>Associazione Diretta</strong>: Ogni nota è collegata a un singolo messaggio
+                    (<code>message_id</code>)</li>
+                <li><strong>Rating e Feedback</strong>: Possibilità di assegnare un voto (rating) e un commento testuale
+                    libero</li>
+                <li><strong>Tracciabilità</strong>: Registrazione dell'autore della nota e timestamp</li>
+            </ul>
+
+            <h3>Workflow di Miglioramento Continuo</h3>
+            <ul>
+                <li><strong>Review a Posteriori</strong>: I coordinatori possono rileggere le sessioni e identificare
+                    risposte AI non ottimali</li>
+                <li><strong>Annotazione Puntuale</strong>: Inserimento di note specifiche su cosa non ha funzionato (es.
+                    "Tono troppo formale", "Ha ignorato la domanda")</li>
+                <li><strong>Ottimizzazione Prompts</strong>: Gli sviluppatori utilizzano questi feedback aggregati per
+                    raffinare i System Prompts e gli script dei Lifecycle</li>
+            </ul>
+
+            <div class="final-results">
+                <h2>🎯 Risultati Finali</h2>
+                <p>Il progetto è ora un sistema completo e production-ready che include:</p>
+                <ul>
+                    <li>API FastAPI con endpoint per chat, health check, monitoraggio, sessioni e preview</li>
+                    <li>Database PostgreSQL con persistenza completa delle sessioni, messaggi, system prompts, human
+                        tasks e AI models</li>
+                    <li>AI Google Gemini per risposte conversazionali intelligenti con sistema avanzato di prompt
+                        dinamici e versioning</li>
+                    <li>Sistema di ciclo di vita automatizzato per la gestione lead basato su script specifici per fase
+                        e transizioni intelligenti</li>
+                    <li>Sistema di snippet di messaggi con primo messaggio automatico, risposte predefinite e risorse
+                        informative</li>
+                    <li>Sistema di batch waiting per aggregazione messaggi e prevenzione chiamate AI multiple in
+                        sequenza rapida</li>
+                    <li>Sistema completo di human tasks per intervento professionale con blocco intelligente del flusso
+                        AI e banner non-bloccanti</li>
+                    <li>Ambiente di sviluppo locale completo con Docker PostgreSQL, Poetry venv e script local.sh
+                        automatizzato</li>
+                    <li>Infrastruttura di produzione gestita con script server.sh completo, Nginx reverse proxy e SSL
+                        Let's Encrypt</li>
+                    <li>Sistema di prompt dinamici recuperati dal database con interfaccia di modifica e separazione
+                        identità/logica</li>
+                    <li>Infrastruttura Docker unificata con dominio pubblico sicuro (corposostenibile.duckdns.org) per
+                        webhook respond.io</li>
+                    <li>Dashboard web per test, documentazione e monitoraggio con interfacce dedicate per task umani e
+                        sessioni</li>
+                    <li>Script di gestione completi per deployment, manutenzione, test, linting e troubleshooting</li>
+                    <li>Documentazione esaustiva per sviluppo, operazioni e flusso end-to-end con guide API
+                        Swagger/OpenAPI</li>
+                    <li>Sicurezza avanzata con prevenzione SQL injection, validazione webhook e gestione errori async
+                    </li>
+                    <li>Logging dettagliato, health checks e supporto per debug in sviluppo e produzione</li>
+                    <li>Suite di test automatizzati con pytest e migrazioni Alembic per evoluzione sicura dello schema
+                    </li>
+                    <li>Gestione modelli AI dinamica con selezione modelli (es. Gemini 2.5 Pro) e configurazione
+                        interfaccia</li>
+                    <li>Interfacce web interattive con template HTML per chat, conversazioni, sessioni, task e
+                        visualizzazioni flussi</li>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+</body>
+
+</html>

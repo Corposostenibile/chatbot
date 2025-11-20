@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mappa Architetturale - Chatbot Corposostenibile</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .title h1 {
+            font-size: 1.5rem;
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .back-btn {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            background: #f1f5f9;
+        }
+
+        .back-btn:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .diagram-container {
+            flex: 1;
+            overflow: auto;
+            padding: 40px;
+            background: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .mermaid {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="title">
+                <h1><i class="fas fa-sitemap" style="color: #0284c7;"></i> Mappa Architetturale del Sistema</h1>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="/project-report" class="back-btn">
+                    <i class="fas fa-file-alt"></i> Report
+                </a>
+                <a href="/" class="back-btn">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+            </div>
+        </div>
+
+        <div class="diagram-container">
+            <div class="mermaid">
+                graph TD
+                subgraph DASHBOARD
+                SDB[SESSION DB]
+                HT[HUMAN TASKS]
+                end
+
+                subgraph PROMPTING
+                SP[SYSTEM PROMPT]
+                DP[PROMPT DINAMICO]
+                end
+
+                SDB -->|Visualizza| CHAT[Tutte le Chat]
+                CHAT -->|Info| INFO[Ciclo di Vita, N.Msg, N.Task]
+                CHAT -->|Azione| CONV[Visualizza Conversazione]
+                CONV -->|Feature| NOTES[Note ai Messaggi + Voto]
+
+                HT -->|Visualizza| ALL_TASKS[Tutte le Task Umane]
+                ALL_TASKS -->|Origine| MANUAL[Manuali]
+                ALL_TASKS -->|Origine| AI_GEN[Create da AI]
+                AI_GEN -->|Trigger| SENSITIVE[Es. Pensieri Suicidi]
+
+                SP -->|Definisce| ID[Identità, Stile, Regole]
+                SP -->|Stato| STATIC[Unica Istruzione Statica]
+
+                DP -->|Include| SNIPPET_LC[Snippet Ciclo di Vita]
+                DP -->|Include| SNIPPET_GEN[Snippet Generici]
+                DP -->|Include| OBJ[Obiettivo Fase]
+                DP -->|Include| IND[Indicatori Transizione]
+
+                RULES[DA RICORDARE] -->|1| AUTO[Primo Messaggio Automatico]
+                RULES -->|2| CONF[Cambio Lifecycle se Conf >= 0.7]
+                RULES -->|3| BATCH[Batch Waiting]
+
+                style DASHBOARD fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
+                style PROMPTING fill:#f0fdf4,stroke:#166534,stroke-width:2px
+                style RULES fill:#fff7ed,stroke:#c2410c,stroke-width:2px
+
+                %% Styling nodes
+                classDef default fill:#fff,stroke:#94a3b8,stroke-width:1px,rx:5,ry:5;
+                classDef mainNode fill:#f8fafc,stroke:#475569,stroke-width:2px,font-weight:bold;
+
+                class SDB,HT,SP,DP,RULES mainNode;
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        try {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: 'base',
+                themeVariables: {
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    fontSize: '16px',
+                    primaryColor: '#e0f2fe',
+                    edgeLabelBackground: '#ffffff',
+                },
+                flowchart: {
+                    curve: 'basis',
+                    padding: 20
+                }
+            });
+
+            await mermaid.run({
+                querySelector: '.mermaid'
+            });
+        } catch (e) {
+            console.error('Mermaid error:', e);
+            document.querySelectorAll('.mermaid').forEach(el => {
+                el.innerHTML = '<div style="color:red; padding:20px; text-align:center;"><h3>Errore caricamento grafico</h3><p>' + e.message + '</p></div><pre style="background:#f1f5f9; padding:20px; border-radius:8px; overflow:auto;">' + el.innerText + '</pre>';
+            });
+        }
+    </script>
+</body>
+
+</html>

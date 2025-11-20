@@ -14,7 +14,7 @@ from datapizza.clients.google import GoogleClient
 from datapizza.agents import Agent
 
 from app.models.lifecycle import (
-    LifecycleStage, 
+    LifecycleStage,
     LifecycleResponse
 )
 from app.data.lifecycle_config import LIFECYCLE_SCRIPTS
@@ -45,33 +45,33 @@ class ParsingError(ChatbotError):
 
 class UnifiedAgent:
     """Agente unificato che gestisce conversazione e lifecycle management"""
-    
+
     def __init__(self):
         """Inizializza l'agente unificato"""
         try:
             # Verifica che l'API key sia configurata
             if not settings.google_ai_api_key:
                 raise ValueError("GOOGLE_AI_API_KEY non configurata nel file .env")
-            
+
             # Inizializza il client Google
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
                 model="gemini-flash-latest",
             )
-            
+
             # Carica il prompt di sistema attivo dal database
             # Nota: il prompt verrà caricato dinamicamente per ogni richiesta
             self.agent = None  # Verrà inizializzato al primo uso
-            
+
             logger.info("UnifiedAgent inizializzato con successo")
-            
+
         except Exception as e:
             logger.error(f"Errore nell'inizializzazione di UnifiedAgent: {e}")
             raise
 
     async def _get_agent(self, model_name: str = None) -> Agent:
         """Ottiene l'agente con il prompt di sistema attivo e il modello specificato
-        
+
         Args:
             model_name: Nome del modello da utilizzare (opzionale, usa il default se non specificato)
         """
@@ -81,22 +81,22 @@ class UnifiedAgent:
             from app.services.ai_model_service import AIModelService
             active_model = await AIModelService.get_active_model()
             model_name = active_model.name if active_model else "gemini-flash-latest"
-        
+
         logger.info(f"Utilizzo del modello: {model_name}")
-        
+
         # Carica il prompt attivo dal database
         system_prompt = await SystemPromptService.get_active_prompt()
         logger.info("Caricato prompt di sistema attivo dal database")
         logger.info("===============================================")
         logger.info(f"{system_prompt}")
         logger.info("===============================================")
-        
+
         # Crea un nuovo client con il modello specificato
         client = GoogleClient(
             api_key=settings.google_ai_api_key,
             model=model_name,
         )
-        
+
         # Inizializza l'agente con il prompt caricato
         agent = Agent(
             client=client,
@@ -104,7 +104,7 @@ class UnifiedAgent:
             system_prompt=system_prompt,
         )
         logger.info(f"Agente inizializzato con prompt dal database e modello {model_name}")
-        
+
         return agent
 
     async def get_or_create_session(self, session_id: str, db: AsyncSession) -> SessionModel:
@@ -113,10 +113,10 @@ class UnifiedAgent:
             select(SessionModel).where(SessionModel.session_id == session_id)
         )
         session = result.scalar_one_or_none()
-        
+
         if session:
             return session
-        
+
         # Crea una nuova sessione
         new_session = SessionModel(session_id=session_id)
         db.add(new_session)
@@ -129,11 +129,11 @@ class UnifiedAgent:
         """Formatta gli snippet disponibili per il contesto del prompt"""
         if not snippets:
             return "Nessuno snippet disponibile per questa fase."
-        
+
         snippets_list = []
         for snippet_id, snippet_content in snippets.items():
             snippets_list.append(f"- {snippet_id}: {snippet_content}")
-        
+
         return "\n".join(snippets_list)
 
     def _clean_ai_response(self, ai_response: str) -> str:
@@ -271,7 +271,7 @@ class UnifiedAgent:
 
     async def _call_ai_agent(self, prompt: str, model_name: str = None, context: str = "") -> str:
         """Chiama l'agente AI e gestisce gli errori
-        
+
         Args:
             prompt: Il prompt da inviare all'AI
             model_name: Nome del modello da utilizzare (opzionale)
@@ -289,7 +289,7 @@ class UnifiedAgent:
         """Gestisce la transizione del lifecycle se necessario"""
         if confidence < 0.7:
             return False
-            
+
         try:
             new_lifecycle = LifecycleStage[new_lifecycle_str.upper().replace(" ", "_")]
 
@@ -319,14 +319,14 @@ class UnifiedAgent:
                 )
         except (KeyError, ValueError) as e:
             logger.warning(f"Lifecycle non valido: {new_lifecycle_str}")
-            
+
         return False
 
     async def _process_ai_response(self, ai_response: str, session: SessionModel, db: AsyncSession) -> Dict:
         """Elabora la risposta AI completa: parsing, normalizzazione, transizione"""
         # Parse risposta AI
         response_data = self._parse_ai_response(ai_response)
-        
+
         # Estrai dati
         messages = response_data.get("messages") or response_data.get("message", "Ciao! Come posso aiutarti oggi?")
         should_change = response_data.get("should_change_lifecycle", False)
@@ -335,20 +335,20 @@ class UnifiedAgent:
         confidence = response_data.get("confidence", 0.5)
         requires_human = response_data.get("requires_human", False)
         human_task = response_data.get("human_task")
-        
+
         # Normalizza messaggi
         # If a human task is required, the AI should not return messages for the user
         if requires_human:
             normalized_messages = []
         else:
             normalized_messages = self._normalize_messages(messages)
-        
+
         # Gestisci transizione lifecycle: ora viene applicata solo dopo che l'eventuale
         # assistant message è stato salvato nella cronologia (per evitare transizioni duplicate
         # visibili nella chat). Qui ritorniamo la decisione e la stringa target, la transizione
         # verrà eseguita successivamente dalla funzione chiamante (chat)
         lifecycle_changed = False
-        
+
         return {
             "messages": normalized_messages,
             "should_change": should_change,
@@ -363,33 +363,32 @@ class UnifiedAgent:
 
     async def _build_conversation_context(self, session: SessionModel, db: AsyncSession) -> str:
         """Costruisce il contesto della conversazione dalla cronologia"""
-        # Ottieni gli ultimi 10 messaggi (5 scambi)
+        # Ottieni l'intera cronologia della conversazione
         result = await db.execute(
             select(MessageModel)
             .where(MessageModel.session_id == session.id)
             .order_by(MessageModel.timestamp.desc(), MessageModel.id.desc())
-            .limit(10)
         )
         messages = result.scalars().all()
-        
+
         if not messages:
             return "Nessuna conversazione precedente."
-        
+
         # Riordina cronologicamente
         messages = list(reversed(messages))
-        
+
         context_lines = []
         for msg in messages:
             role = "UTENTE" if msg.role == "user" else "ASSISTENTE"
             context_lines.append(f"{role}: {msg.message}")
-        
+
         return "\n".join(context_lines)
 
     async def _get_unified_prompt(self, session: SessionModel, user_message: str, db: AsyncSession) -> str:
         """Genera il prompt unificato che gestisce conversazione e lifecycle"""
         current_lifecycle = session.current_lifecycle
         current_config = LIFECYCLE_SCRIPTS.get(current_lifecycle, {})
-        
+
         # Informazioni sul lifecycle corrente
         script_raw = current_config.get("script", "")
         if isinstance(script_raw, list):
@@ -401,14 +400,14 @@ class UnifiedAgent:
         objective = current_config.get("objective", "")
         transition_indicators = current_config.get("transition_indicators", [])
         next_stage = current_config.get("next_stage")
-        
+
         # Ottieni snippet disponibili per questo lifecycle
         available_snippets = current_config.get("available_snippets", {})
         snippets_context = self._format_snippets_context(available_snippets)
-        
+
         # Contesto conversazione
         conversation_context = await self._build_conversation_context(session, db)
-        
+
         # Costruisci il prompt unificato
         unified_prompt = f"""LIFECYCLE CORRENTE: {current_lifecycle.value.upper()}
 
@@ -437,8 +436,8 @@ INDICATORI PER PASSARE AL PROSSIMO LIFECYCLE ({next_stage.value if next_stage el
 FORMATO RISPOSTA RICHIESTO:
 Devi rispondere SEMPRE in questo formato JSON:
 {{
-    "messages": "La tua risposta completa" 
-    OPPURE 
+    "messages": "La tua risposta completa"
+    OPPURE
     "messages": [
         {{"text": "Prima parte del messaggio", "delay_ms": 10000}},
         {{"text": "Seconda parte", "delay_ms": 10000}}
@@ -469,24 +468,24 @@ IMPORTANTE:
     async def chat(self, session_id: str, user_message: str, model_name: str = None, batch_wait_seconds: Optional[int] = None) -> LifecycleResponse:
         """
         Gestisce una conversazione completa con decisione automatica del lifecycle
-        
+
         Args:
             session_id: ID della sessione di chat
             user_message: Messaggio dell'utente
             model_name: Nome del modello AI da utilizzare (opzionale)
-            
+
         Returns:
             LifecycleResponse con la risposta e informazioni sul lifecycle
         """
         # Inizia una nuova sessione di log
         log_capture.start_session()
-        
+
         async for db in get_db():
             try:
                 # STARTING AGENT
                 log_capture.add_log("INFO", "-------------------------------------------------")
                 log_capture.add_log("INFO", "STARTING AGENT")
-                
+
                 # Ottieni o crea la sessione
                 session = await self.get_or_create_session(session_id, db)
                 previous_lifecycle = session.current_lifecycle
@@ -529,26 +528,26 @@ IMPORTANTE:
                             "metadata": json_lib.loads(active_task.metadata_json) if active_task.metadata_json else None,
                         }
                     )
-                
+
                 log_capture.add_log("INFO", f"Session loaded: {session_id}")
-                
+
                 # Check if this is the first message
                 result = await db.execute(
                     select(func.count(MessageModel.id)).where(MessageModel.session_id == session.id)
                 )
                 message_count = result.scalar()
-                
+
                 if message_count == 0:
                     # First message: send auto response and then call AI with CONTRASSEGNATO
-                    auto_response = """Ciao! Grazie di avermi scritto! 
+                    auto_response = """Ciao! Grazie di avermi scritto!
 
 Questo è un messaggio automatico che ho scritto personalmente per riuscire a ringraziarti subito della fiducia!🙏
 
 Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti personalmente l'attenzione che meriti."""
-                    
+
                     # Update lifecycle to CONTRASSEGNATO
                     await self._update_session_lifecycle(session, LifecycleStage.CONTRASSEGNATO, db)
-                    
+
                     # Add auto response to history
                     ai_msg = await self._add_to_conversation_history(session, user_message, auto_response, db)
                     # If we updated session lifecycle above (NUOVA_LEAD -> CONTRASSEGNATO), create an anchored event
@@ -565,21 +564,21 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                             await db.commit()
                         except Exception as e:
                             logger.warning(f"Impossibile creare lifecycle event per contrassegnato: {e}")
-                    
+
                     # Now generate prompt for CONTRASSEGNATO and call AI
                     session_refreshed = await db.get(SessionModel, session.id)
                     unified_prompt = await self._get_unified_prompt(session_refreshed, user_message, db)
                     log_capture.add_log("INFO", f"SCRIPT GUIDA (CONTRASSEGNATO dopo messaggio automatico)\n{unified_prompt}")
-                    
+
                     logger.info(f"Generando risposta CONTRASSEGNATO per primo messaggio in sessione {session_id}")
-                    
+
                     # Call AI for CONTRASSEGNATO
                     ai_response = await self._call_ai_agent(unified_prompt, model_name=model_name)
                     log_capture.add_log("INFO", "AI response received (CONTRASSEGNATO)")
-                    
+
                     # Process AI response
                     contrassegnato_result = await self._process_ai_response(ai_response, session_refreshed, db)
-                    
+
                     # Add AI response to history (unless human task required)
                     created_task = None
                     if not contrassegnato_result.get("requires_human"):
@@ -610,14 +609,14 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     else:
                         created_task = await self._create_human_task(session_refreshed, contrassegnato_result.get("human_task") or {}, db)
                         log_capture.add_log("INFO", f"Human task created (contrassegnato first message): {created_task}")
-                    
+
                     # Combine messages: auto response + AI response
                     combined_messages = [{"text": auto_response.strip(), "delay_ms": 0}]
                     if isinstance(contrassegnato_result["messages"], list):
                         combined_messages.extend(contrassegnato_result["messages"])
                     else:
                         combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000})
-                    
+
                     lifecycle_changed_flag = previous_lifecycle != session_refreshed.current_lifecycle
 
                     return LifecycleResponse(
@@ -688,32 +687,32 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                 # Now continue with the normal unified prompt generation using aggregated messages
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
                 log_capture.add_log("INFO", f"Batch window ended; calling AI for session {session.session_id}")
-                
+
                 # CASO NORMALE: genera il prompt unificato
                 unified_prompt = await self._get_unified_prompt(session, user_message, db)
                 log_capture.add_log("INFO", f"SCRIPT GUIDA\n{unified_prompt}")
-                
+
                 logger.info("-------------------------------------------------")
                 logger.info(f"Prompt unificato per sessione {session_id}:\n{unified_prompt}")
                 logger.info("-------------------------------------------------")
-                
+
                 # Invia il messaggio all'AI
                 log_capture.add_log("INFO", "-------------------------------------------------")
                 log_capture.add_log("INFO", f"Invio messaggio unificato per sessione {session_id}")
                 logger.info(f"Invio messaggio unificato per sessione {session_id}")
-                
+
                 ai_response = await self._call_ai_agent(unified_prompt, model_name=model_name)
                 log_capture.add_log("INFO", "AI response received")
                 logger.info(f"Risposta AI ricevuta per sessione {session_id}")
-                
+
                 # Elabora la risposta AI completa
                 log_capture.add_log("INFO", "Parsing AI response...")
                 result = await self._process_ai_response(ai_response, session, db)
-                
+
                 log_capture.add_log("INFO", f"Decision: change={result['should_change']}, confidence={result['confidence']}, messages={len(result['messages'])}")
                 log_capture.add_log("INFO", f"```json\n{json.dumps(result, indent=2)}\n```")
                 log_capture.add_log("INFO", "JSON parsed successfully")
-                
+
                 # Aggiungi il messaggio alla cronologia
                 # Se l'AI richiede intervento umano, creiamo prima la task e NON aggiungiamo la risposta dell'assistente
                 # alla cronologia per evitare che risposte incomplete vengano salvate.
@@ -748,11 +747,11 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                                 await db.commit()
                             except Exception as e:
                                 logger.warning(f"Impossibile creare lifecycle event: {e}")
-                
+
                 # `next_actions` removed - dropping per previous decision
-                
+
                 log_capture.add_log("INFO", "Response ready")
-                
+
                 session_after = await db.get(SessionModel, session.id)
                 lifecycle_changed_flag = previous_lifecycle != session_after.current_lifecycle
 
@@ -769,7 +768,7 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     requires_human=result.get("requires_human", False),
                     human_task=created_task if result.get("requires_human") else None
                 )
-                    
+
             except Exception as e:
                 log_capture.add_log("INFO", "ERROR: General error")
                 logger.error(f"Errore generale nell'agente unificato: {e}")
@@ -789,7 +788,7 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
 
     async def _add_to_conversation_history(self, session: SessionModel, user_message: str, ai_response: str, db: AsyncSession) -> None:
         """Aggiunge i messaggi alla cronologia della conversazione"""
-        
+
         # Aggiungi messaggio utente
         user_msg = MessageModel(
             session_id=session.id,
@@ -798,7 +797,7 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
             timestamp=datetime.now(timezone.utc)
         )
         db.add(user_msg)
-        
+
         # Aggiungi risposta AI
         ai_msg = MessageModel(
             session_id=session.id,
@@ -813,17 +812,17 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
             # Best effort: if lifecycle isn't available, ignore
             pass
         db.add(ai_msg)
-        
+
         await db.commit()
         await db.refresh(ai_msg)
         return ai_msg
-        
+
         # Mantieni solo gli ultimi 20 messaggi per ottimizzare la memoria (opzionale, ma per pulizia)
         # Potremmo implementare una pulizia periodica
 
     async def _add_assistant_response_to_history(self, session: SessionModel, ai_response: str, db: AsyncSession) -> None:
         """Aggiunge solo una risposta assistant alla cronologia (senza nuovo user message)"""
-        
+
         # Aggiungi risposta AI
         try:
             # Deduplicate assistant messages that are identical and very recent
