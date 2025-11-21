@@ -25,8 +25,6 @@ class ChatResponse(BaseModel):
     # `next_actions` removed: this feature was deprecated — see PR notes
     ai_reasoning: Optional[str] = None
     confidence: float = 0.0
-    debug_logs: Optional[List[str]] = None
-    full_logs: Optional[str] = None
     timestamp: str
     is_conversation_finished: bool = False
     requires_human: bool = False

@@ -395,6 +395,7 @@ async def get_session_history(session_id: str):
         messages = []
         for msg in messages_data:
             messages.append({
+                'id': msg.id,
                 'role': msg.role,
                 'message': msg.message,
                 'timestamp': msg.timestamp.isoformat()
@@ -443,8 +444,6 @@ async def chat_endpoint(chat_message: ChatMessage):
                     previous_lifecycle=None,
                     ai_reasoning="Conversazione terminata",
                     confidence=1.0,
-                    debug_logs=[],
-                    full_logs="",
                     timestamp=str(int(time.time())),
                     is_conversation_finished=True
                 )
@@ -474,8 +473,6 @@ async def chat_endpoint(chat_message: ChatMessage):
             # next_actions removed - no longer part of API
             ai_reasoning=lifecycle_response.ai_reasoning,
             confidence=lifecycle_response.confidence,
-            debug_logs=lifecycle_response.debug_logs,
-            full_logs=lifecycle_response.full_logs,
             timestamp=str(int(time.time())),
             is_conversation_finished=lifecycle_response.is_conversation_finished
             ,requires_human=lifecycle_response.requires_human

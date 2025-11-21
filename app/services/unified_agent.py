@@ -358,24 +358,23 @@ class UnifiedAgent:
             "lifecycle_changed": lifecycle_changed,
             "requires_human": requires_human,
             "human_task": human_task,
-            "full_message_text": " ".join([msg["text"] for msg in normalized_messages])
+            "full_message_text": "\n---SPLIT---\n".join([msg["text"] for msg in normalized_messages])
         }
 
     async def _build_conversation_context(self, session: SessionModel, db: AsyncSession) -> str:
         """Costruisce il contesto della conversazione dalla cronologia"""
-        # Ottieni l'intera cronologia della conversazione
+        # Ottieni l'intera cronologia della conversazione in ordine cronologico
         result = await db.execute(
             select(MessageModel)
             .where(MessageModel.session_id == session.id)
-            .order_by(MessageModel.timestamp.desc(), MessageModel.id.desc())
+            .order_by(MessageModel.timestamp.asc(), MessageModel.id.asc())
         )
         messages = result.scalars().all()
 
         if not messages:
             return "Nessuna conversazione precedente."
 
-        # Riordina cronologicamente
-        messages = list(reversed(messages))
+        # I messaggi sono già in ordine cronologico (dal più vecchio al più recente)
 
         context_lines = []
         for msg in messages:
@@ -515,8 +514,6 @@ IMPORTANTE:
                         previous_lifecycle=None,
                         ai_reasoning="Human task open; awaiting human completion",
                         confidence=1.0,
-                        debug_logs=log_capture.get_session_logs(),
-                        full_logs=log_capture.get_session_logs_str(),
                         is_conversation_finished=session.is_conversation_finished,
                         requires_human=True,
                         human_task={
@@ -611,11 +608,20 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         log_capture.add_log("INFO", f"Human task created (contrassegnato first message): {created_task}")
 
                     # Combine messages: auto response + AI response
-                    combined_messages = [{"text": auto_response.strip(), "delay_ms": 0}]
+                    # First message (auto response) gets the ID from the first save
+                    combined_messages = [{"text": auto_response.strip(), "delay_ms": 0, "id": ai_msg.id}]
+
+                    # Subsequent messages (AI response) get the ID from the second save (if it exists)
+                    # Note: ai_msg variable was reused for the second save at line 586
+                    ai_response_id = ai_msg.id if 'ai_msg' in locals() and ai_msg else None
+
                     if isinstance(contrassegnato_result["messages"], list):
-                        combined_messages.extend(contrassegnato_result["messages"])
+                        for m in contrassegnato_result["messages"]:
+                            if isinstance(m, dict):
+                                m["id"] = ai_response_id
+                            combined_messages.append(m)
                     else:
-                        combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000})
+                        combined_messages.append({"text": contrassegnato_result["messages"], "delay_ms": 1000, "id": ai_response_id})
 
                     lifecycle_changed_flag = previous_lifecycle != session_refreshed.current_lifecycle
 
@@ -626,8 +632,6 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         previous_lifecycle=previous_lifecycle if lifecycle_changed_flag else None,
                         ai_reasoning=contrassegnato_result["reasoning"],
                         confidence=contrassegnato_result["confidence"],
-                        debug_logs=log_capture.get_session_logs(),
-                        full_logs=log_capture.get_session_logs_str(),
                         is_conversation_finished=False,
                         requires_human=contrassegnato_result.get("requires_human", False),
                         human_task=created_task if contrassegnato_result.get("requires_human") else None
@@ -645,22 +649,19 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                         previous_lifecycle=None,
                         ai_reasoning="Messaggio messo in coda (batch aggregation)",
                         confidence=1.0,
-                        debug_logs=log_capture.get_session_logs(),
-                        full_logs=log_capture.get_session_logs_str(),
                         is_conversation_finished=session.is_conversation_finished
                     )
 
                 # If not in batch mode, set batch waiting and delay the AI call to gather subsequent messages
                 # This prevents multiple AI calls when the user sends several messages quickly.
+                # Save the current user message before entering batch wait so it is persisted in order.
+                await self._add_user_message_to_history(session, user_message, db)
                 # Mark session as waiting for batch and commit
                 session.is_batch_waiting = True
                 session.batch_started_at = datetime.now(timezone.utc)
                 await db.commit()
 
-                # NOTE: We don't save the user message here because _add_to_conversation_history
-                # will save both user and assistant messages together after the AI response.
-                # This prevents duplicate user messages in the database.
-
+                # NOTE: We don't need to save the user message again after the wait because it is already stored.
                 # Wait for aggregation window (default 60s). This is intentionally blocking the request.
                 # Respect explicit 0 value (no wait) vs None (default wait)
                 wait_seconds = int(batch_wait_seconds) if batch_wait_seconds is not None else 60
@@ -724,6 +725,13 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     log_capture.add_log("INFO", f"Human task created: {created_task}")
                 else:
                     ai_msg = await self._add_to_conversation_history(session, user_message, result["full_message_text"], db)
+
+                    # Inject message ID into the result messages
+                    if isinstance(result["messages"], list):
+                        for m in result["messages"]:
+                            if isinstance(m, dict):
+                                m["id"] = ai_msg.id
+
                     log_capture.add_log("INFO", "Conversation history updated")
                     # If the AI suggested a transition, apply it AFTER saving the assistant message
                     if result.get("should_change"):
@@ -762,8 +770,6 @@ Come sai ricevo centinaia di richieste ogni giorno e ci tengo a dedicarti person
                     previous_lifecycle=previous_lifecycle if lifecycle_changed_flag else None,
                     ai_reasoning=result["reasoning"],
                     confidence=result["confidence"],
-                    debug_logs=log_capture.get_session_logs(),
-                    full_logs=log_capture.get_session_logs_str(),
                     is_conversation_finished=session.is_conversation_finished,
                     requires_human=result.get("requires_human", False),
                     human_task=created_task if result.get("requires_human") else None

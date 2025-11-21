@@ -36,6 +36,12 @@ class SessionModel(Base):
         back_populates="session",
         order_by="LifecycleEventModel.created_at"
     )
+    # General notes for the session
+    notes: Mapped[List["SessionNoteModel"]] = relationship(
+        "SessionNoteModel",
+        back_populates="session",
+        order_by="SessionNoteModel.created_at.desc()"
+    )
 
 
 class MessageModel(Base):
@@ -128,3 +134,16 @@ class LifecycleEventModel(Base):
 
     # Relationship back to session and optionally message
     session: Mapped[SessionModel] = relationship("SessionModel", back_populates="lifecycle_events")
+
+
+class SessionNoteModel(Base):
+    __tablename__ = "session_notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    session_id: Mapped[int] = mapped_column(Integer, ForeignKey("sessions.id"), index=True)
+    note: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    session: Mapped["SessionModel"] = relationship("SessionModel", back_populates="notes")
