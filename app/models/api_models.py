@@ -92,3 +92,23 @@ class MessageNoteUpdate(BaseModel):
     """Model to update a message note"""
     rating: Optional[int] = None
     note: Optional[str] = None
+
+
+class SessionNoteCreate(BaseModel):
+    """Model to create a session note"""
+    session_id: str
+    note: str
+
+
+class SessionNoteResponse(BaseModel):
+    """Model to return session note information"""
+    id: int
+    session_id: int
+    note: str
+    created_at: str
+    updated_at: str
+
+
+class SessionNoteUpdate(BaseModel):
+    """Model to update a session note"""
+    note: Optional[str] = None

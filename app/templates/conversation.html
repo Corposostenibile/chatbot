@@ -457,6 +457,44 @@
                 </div>
             </div>
 
+            <!-- Session Notes Section -->
+            <div class="session-notes-section" style="margin-bottom: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="color: #374151; font-size: 1.2rem; font-weight: 600;">📝 Note di Sessione</h3>
+                    <button class="task-link-btn" onclick="openSessionNoteModal()"
+                        style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); font-size: 0.9rem; padding: 8px 16px;">
+                        {% if session_notes %}Modifica Note{% else %}+ Aggiungi Nota{% endif %}
+                    </button>
+                </div>
+
+                {% if session_notes %}
+                <div class="session-notes-list">
+                    {% for note in session_notes %}
+                    <div class="session-note-card"
+                        style="background: #fefce8; border: 1px solid #fbbf24; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+                        <div <div <div
+                            style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <span style="font-weight: 500; color: #92400e;">Nota di Sessione</span>
+                            <span style="font-size: 0.8rem; color: #a16207;">{{ note.created_at }}</span>
+                        </div>
+                        <div style="color: #78350f; line-height: 1.5; white-space: pre-wrap;">{{ note.note }}</div>
+                        {% if note.updated_at != note.created_at %}
+                        <div style="font-size: 0.8rem; color: #a16207; margin-top: 5px;">Aggiornato: {{ note.updated_at
+                            }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div
+                    style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; text-align: center; color: #6b7280;">
+                    <p>📝 Nessuna nota di sessione presente</p>
+                    <p style="font-size: 0.9rem; margin-top: 5px;">Usa il pulsante sopra per aggiungere una nota
+                        generale sulla conversazione.</p>
+                </div>
+                {% endif %}
+            </div>
+
             <div class="task-info">
                 <strong>📋 Task Associate:</strong> <span id="taskCount">Caricamento...</span>
             </div>
@@ -537,6 +575,30 @@
                     <button type="button" class="modal-btn modal-btn-secondary"
                         onclick="closeTaskModal()">Annulla</button>
                     <button type="submit" class="modal-btn modal-btn-primary">Crea Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Session Note Modal -->
+    <div class="modal-overlay" id="sessionNoteModal">
+        <div class="modal-content">
+            <div class="modal-header">{% if session_notes %}Modifica Nota di Sessione{% else %}Aggiungi Nota di
+                Sessione{% endif %}</div>
+            <form id="sessionNoteForm">
+                <input type="hidden" id="sessionNoteId"
+                    value="{% if session_notes %}{{ session_notes[0].id }}{% endif %}">
+                <div class="form-group">
+                    <label class="form-label">Nota *</label>
+                    <textarea class="form-textarea" id="sessionNoteText"
+                        placeholder="Scrivi una nota generale sulla conversazione..." required
+                        rows="6">{% if session_notes %}{{ session_notes[0].note }}{% endif %}</textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary"
+                        onclick="closeSessionNoteModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">{% if session_notes %}Aggiorna Nota{% else
+                        %}Salva Nota{% endif %}</button>
                 </div>
             </form>
         </div>
@@ -651,6 +713,65 @@
                 location.reload();
             }
         }, 60000);
+
+        // Session Note Modal functions
+        function openSessionNoteModal() {
+            document.getElementById('sessionNoteModal').classList.add('active');
+        }
+
+        function closeSessionNoteModal() {
+            document.getElementById('sessionNoteModal').classList.remove('active');
+        }
+
+        // Chiudi modal cliccando fuori
+        document.getElementById('sessionNoteModal').addEventListener('click', (e) => {
+            if (e.target.id === 'sessionNoteModal') {
+                closeSessionNoteModal();
+            }
+        });
+
+        // Invia form per salvare/modificare nota di sessione
+        document.getElementById('sessionNoteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const noteId = document.getElementById('sessionNoteId').value;
+            const noteText = document.getElementById('sessionNoteText').value.trim();
+
+            if (!noteText) {
+                alert('La nota non può essere vuota');
+                return;
+            }
+
+            try {
+                let resp;
+                if (noteId) {
+                    // Aggiorna nota esistente
+                    resp = await fetch(`/api/session-notes/${noteId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ note: noteText })
+                    });
+                } else {
+                    // Crea nuova nota
+                    resp = await fetch('/api/session-notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            note: noteText
+                        })
+                    });
+                }
+
+                if (!resp.ok) throw new Error('Errore nel salvataggio della nota');
+
+                closeSessionNoteModal();
+                // Ricarica la pagina per mostrare la nota aggiornata
+                location.reload();
+            } catch (err) {
+                console.error(err);
+                alert('Errore nel salvataggio della nota di sessione');
+            }
+        });
 
         // Review modal implementation
         function openReviewModal(messageId) {

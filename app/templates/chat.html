@@ -93,6 +93,24 @@
             background-color: rgba(255, 255, 255, 0.2);
         }
 
+        .session-note-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-note-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
         #sessionDisplay {
             color: rgba(255, 255, 255, 0.8) !important;
             background: rgba(0, 0, 0, 0.1);
@@ -640,6 +658,10 @@
             <div class="header-title">Chatbot Setter preview</div>
         </div>
         <div class="header-actions">
+            <button class="session-note-btn" id="sessionNoteBtn" title="Gestisci nota sessione">
+                <i class="fa-solid fa-sticky-note"></i>
+                <span>Nota Sessione</span>
+            </button>
             <span id="sessionDisplay" style="font-size: 13px;">Nessuna sessione</span>
         </div>
     </div>
@@ -740,6 +762,25 @@
         </div>
     </div>
 
+    <!-- Session Note Modal -->
+    <div class="modal-overlay" id="sessionNoteModal">
+        <div class="modal-content">
+            <div class="modal-header" id="sessionNoteModalTitle">Nota della Sessione</div>
+            <form id="sessionNoteForm">
+                <div class="form-group">
+                    <label class="form-label">Nota Generale</label>
+                    <textarea id="sessionNoteText" class="form-textarea"
+                        placeholder="Scrivi una nota generale per questa conversazione..." rows="6"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-secondary"
+                        onclick="closeSessionNoteModal()">Annulla</button>
+                    <button type="submit" class="modal-btn modal-btn-primary">Salva</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         let currentSessionId = null;
         const sessionSelect = document.getElementById('sessionSelect');
@@ -753,10 +794,20 @@
         const sessionDisplay = document.getElementById('sessionDisplay');
         const sidebar = document.getElementById('sidebar');
         const toggleSidebarBtn = document.getElementById('toggleSidebar');
+        const sessionNoteBtn = document.getElementById('sessionNoteBtn');
 
         // Toggle sidebar
         toggleSidebarBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
+        });
+
+        // Session note button
+        sessionNoteBtn.addEventListener('click', () => {
+            if (currentSessionId) {
+                openSessionNoteModal();
+            } else {
+                alert('Seleziona prima una sessione');
+            }
         });
 
         async function loadAvailableSessions() {
@@ -1156,6 +1207,91 @@
 
         // Initialize
         initialize();
+
+        // Session note modal functions
+        function openSessionNoteModal() {
+            loadSessionNote();
+            document.getElementById('sessionNoteModal').classList.add('active');
+        }
+
+        function closeSessionNoteModal() {
+            document.getElementById('sessionNoteModal').classList.remove('active');
+        }
+
+        async function loadSessionNote() {
+            try {
+                const response = await fetch(`/api/session-notes?session_id=${currentSessionId}`);
+                if (response.ok) {
+                    const notes = await response.json();
+                    if (notes.length > 0) {
+                        document.getElementById('sessionNoteModalTitle').textContent = 'Modifica Nota della Sessione';
+                        document.getElementById('sessionNoteText').value = notes[0].note;
+                    } else {
+                        document.getElementById('sessionNoteModalTitle').textContent = 'Aggiungi Nota della Sessione';
+                        document.getElementById('sessionNoteText').value = '';
+                    }
+                } else {
+                    document.getElementById('sessionNoteModalTitle').textContent = 'Aggiungi Nota della Sessione';
+                    document.getElementById('sessionNoteText').value = '';
+                }
+            } catch (error) {
+                console.error('Errore nel caricamento della nota di sessione:', error);
+                document.getElementById('sessionNoteModalTitle').textContent = 'Aggiungi Nota della Sessione';
+                document.getElementById('sessionNoteText').value = '';
+            }
+        }
+
+        // Submit session note form
+        document.getElementById('sessionNoteForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const note = document.getElementById('sessionNoteText').value.trim();
+
+            try {
+                // First check if a note already exists
+                const checkResponse = await fetch(`/api/session-notes?session_id=${currentSessionId}`);
+                let existingNote = null;
+                if (checkResponse.ok) {
+                    const notes = await checkResponse.json();
+                    if (notes.length > 0) {
+                        existingNote = notes[0];
+                    }
+                }
+
+                let response;
+                if (existingNote) {
+                    // Update existing note
+                    response = await fetch(`/api/session-notes/${existingNote.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ note })
+                    });
+                } else {
+                    // Create new note
+                    response = await fetch('/api/session-notes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: currentSessionId, note })
+                    });
+                }
+
+                if (response.ok) {
+                    closeSessionNoteModal();
+                    alert('Nota salvata con successo');
+                } else {
+                    alert('Errore nel salvataggio della nota');
+                }
+            } catch (error) {
+                console.error('Errore nel salvataggio della nota di sessione:', error);
+                alert('Errore di rete');
+            }
+        });
+
+        // Close session note modal when clicking outside
+        document.getElementById('sessionNoteModal').addEventListener('click', (e) => {
+            if (e.target.id === 'sessionNoteModal') {
+                closeSessionNoteModal();
+            }
+        });
     </script>
 </body>
 

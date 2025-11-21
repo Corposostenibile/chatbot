@@ -258,135 +258,264 @@
         </div>
 
         <div class="content">
-            {% if notes %}
-            <div class="notes-grid">
-                {% for note in notes %}
-                <div class="note-card" id="note-{{ note.id }}">
+            <!-- Session Note Section -->
+            {% if session.is_conversation_finished %}
+            <div class="session-note-section">
+                <h2>📝 Nota Generale della Conversazione</h2>
+                {% if session_notes %}
+                {% for session_note in session_notes %}
+                <div class="note-card session-note-card" id="session-note-{{ session_note.id }}">
                     <div class="note-header">
-                        <span
-                            class="rating-badge {% if note.rating >= 4 %}rating-high{% elif note.rating <= 2 %}rating-low{% endif %}">
-                            Voto: {{ note.rating }}/5
+                        <span class="note-meta">
+                            Nota generale • {{ session_note.created_at }}
                         </span>
-                        <div class="note-meta">
-                            {{ note.created_at }} • {{ note.created_by or 'Anonimo' }}
-                        </div>
                     </div>
-
-                    {% if note.message_preview %}
-                    <div class="message-preview">
-                        <strong>Messaggio AI:</strong><br>
-                        {{ note.message_preview[:200] }}{% if note.message_preview|length > 200 %}...{% endif %}
-                    </div>
-                    {% endif %}
-
-                    <div class="note-text">{{ note.note }}</div>
-
+                    <div class="note-text">{{ session_note.note }}</div>
                     <div class="note-actions">
-                        <button class="btn-action btn-edit" data-note-id="{{ note.id }}"
-                            data-note-rating="{{ note.rating }}" data-note-text="{{ note.note|e }}"
-                            onclick="openEditModalFromButton(this)">✏️ Modifica</button>
-                        <button class="btn-action btn-delete" onclick="deleteNote({{ note.id }})">🗑️ Elimina</button>
+                        <button class="btn-action btn-edit" data-note-id="{{ session_note.id }}"
+                            data-note-text="{{ session_note.note|e }}" onclick="openSessionNoteModal(this)">✏️
+                            Modifica</button>
+                        <button class="btn-action btn-delete" onclick="deleteSessionNote({{ session_note.id }})">🗑️
+                            Elimina</button>
                     </div>
                 </div>
                 {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-state">
-                <h3>📭 Nessuna nota presente</h3>
-                <p>Non ci sono ancora note per questa sessione.</p>
+                {% else %}
+                <div class="empty-state">
+                    <h3>📭 Nessuna nota generale</h3>
+                    <p>Aggiungi una nota generale per questa conversazione completata.</p>
+                    <button class="btn-action"
+                        style="background: #4f46e5; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer;"
+                        onclick="openSessionNoteModal()">➕ Aggiungi Nota</button>
+                </div>
+                {% endif %}
             </div>
             {% endif %}
+
+            <!-- Message Notes Section -->
+            <div class="message-notes-section">
+                <h2>💬 Note sui Messaggi</h2>
+                {% if notes %}
+                <div class="notes-grid">
+                    {% for note in notes %}
+                    <div class="note-card" id="note-{{ note.id }}">
+                        <div class="note-header">
+                            <span
+                                class="rating-badge {% if note.rating >= 4 %}rating-high{% elif note.rating <= 2 %}rating-low{% endif %}">
+                                Voto: {{ note.rating }}/5
+                            </span>
+                            <div class="note-meta">
+                                {{ note.created_at }}
+                            </div>
+                        </div>
+
+                        {% if note.message_preview %}
+                        <div class="message-preview">
+                            <strong>Messaggio AI:</strong><br>
+                            {{ note.message_preview[:200] }}{% if note.message_preview|length > 200 %}...{% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="note-text">{{ note.note }}</div>
+
+                        <div class="note-actions">
+                            <button class="btn-action btn-edit" data-note-id="{{ note.id }}"
+                                data-note-rating="{{ note.rating }}" data-note-text="{{ note.note|e }}"
+                                onclick="openEditModalFromButton(this)">✏️ Modifica</button>
+                            <button class="btn-action btn-delete" onclick="deleteNote({{ note.id }})">🗑️
+                                Elimina</button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <h3>📭 Nessuna nota presente</h3>
+                    <p>Non ci sono ancora note per questa sessione.</p>
+                </div>
+                {% endif %}
+            </div>
         </div>
-    </div>
 
-    <!-- Edit Modal -->
-    <div class="modal-overlay" id="editModal">
-        <div class="modal-content">
-            <h3>Modifica Nota</h3>
-            <form id="editForm">
-                <input type="hidden" id="editNoteId">
-                <div class="form-group">
-                    <label class="form-label">Voto</label>
-                    <select id="editRating" class="form-input" required>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Nota</label>
-                    <textarea id="editNoteText" class="form-textarea" rows="4" required></textarea>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="modal-btn modal-btn-secondary"
-                        onclick="closeEditModal()">Annulla</button>
-                    <button type="submit" class="modal-btn modal-btn-primary">Salva Modifiche</button>
-                </div>
-            </form>
+        <!-- Edit Modal for Message Notes -->
+        <div class="modal-overlay" id="editModal">
+            <div class="modal-content">
+                <h3>Modifica Nota</h3>
+                <form id="editForm">
+                    <input type="hidden" id="editNoteId">
+                    <div class="form-group">
+                        <label class="form-label">Voto</label>
+                        <select id="editRating" class="form-input" required>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nota</label>
+                        <textarea id="editNoteText" class="form-textarea" rows="4" required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="modal-btn modal-btn-secondary"
+                            onclick="closeEditModal()">Annulla</button>
+                        <button type="submit" class="modal-btn modal-btn-primary">Salva Modifiche</button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
 
-    <script>
-        function openEditModalFromButton(button) {
-            const id = button.getAttribute('data-note-id');
-            const rating = button.getAttribute('data-note-rating');
-            const text = button.getAttribute('data-note-text');
-            openEditModal(id, rating, text);
-        }
+        <!-- Session Note Modal -->
+        <div class="modal-overlay" id="sessionNoteModal">
+            <div class="modal-content">
+                <h3 id="sessionNoteModalTitle">Aggiungi Nota Generale</h3>
+                <form id="sessionNoteForm">
+                    <input type="hidden" id="sessionNoteId">
+                    <div class="form-group">
+                        <label class="form-label">Nota Generale</label>
+                        <textarea id="sessionNoteText" class="form-textarea" rows="6"
+                            placeholder="Scrivi una nota generale sulla conversazione..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="modal-btn modal-btn-secondary"
+                            onclick="closeSessionNoteModal()">Annulla</button>
+                        <button type="submit" class="modal-btn modal-btn-primary">Salva</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-        function openEditModal(id, rating, text) {
-            document.getElementById('editNoteId').value = id;
-            document.getElementById('editRating').value = rating;
-            document.getElementById('editNoteText').value = text;
-            document.getElementById('editModal').classList.add('active');
-        }
-
-        function closeEditModal() {
-            document.getElementById('editModal').classList.remove('active');
-        }
-
-        async function deleteNote(id) {
-            if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
-
-            try {
-                const resp = await fetch(`/api/message-notes/${id}`, { method: 'DELETE' });
-                if (resp.ok) {
-                    location.reload();
-                } else {
-                    alert('Errore durante l\'eliminazione');
-                }
-            } catch (e) {
-                console.error(e);
-                alert('Errore di rete');
+        <script>
+            function openEditModalFromButton(button) {
+                const id = button.getAttribute('data-note-id');
+                const rating = button.getAttribute('data-note-rating');
+                const text = button.getAttribute('data-note-text');
+                openEditModal(id, rating, text);
             }
-        }
 
-        document.getElementById('editForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('editNoteId').value;
-            const rating = document.getElementById('editRating').value;
-            const note = document.getElementById('editNoteText').value;
-
-            try {
-                const resp = await fetch(`/api/message-notes/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rating: parseInt(rating), note })
-                });
-
-                if (resp.ok) {
-                    location.reload();
-                } else {
-                    alert('Errore durante il salvataggio');
-                }
-            } catch (e) {
-                console.error(e);
-                alert('Errore di rete');
+            function openEditModal(id, rating, text) {
+                document.getElementById('editNoteId').value = id;
+                document.getElementById('editRating').value = rating;
+                document.getElementById('editNoteText').value = text;
+                document.getElementById('editModal').classList.add('active');
             }
-        });
-    </script>
+
+            function closeEditModal() {
+                document.getElementById('editModal').classList.remove('active');
+            }
+
+            async function deleteNote(id) {
+                if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
+
+                try {
+                    const resp = await fetch(`/api/message-notes/${id}`, { method: 'DELETE' });
+                    if (resp.ok) {
+                        location.reload();
+                    } else {
+                        alert('Errore durante l\'eliminazione');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Errore di rete');
+                }
+            }
+
+            document.getElementById('editForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('editNoteId').value;
+                const rating = document.getElementById('editRating').value;
+                const note = document.getElementById('editNoteText').value;
+
+                try {
+                    const resp = await fetch(`/api/message-notes/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ rating: parseInt(rating), note })
+                    });
+
+                    if (resp.ok) {
+                        location.reload();
+                    } else {
+                        alert('Errore durante il salvataggio');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Errore di rete');
+                }
+            });
+
+            // Session Note functions
+            function openSessionNoteModal(button = null) {
+                if (button) {
+                    const id = button.getAttribute('data-note-id');
+                    const text = button.getAttribute('data-note-text');
+                    document.getElementById('sessionNoteModalTitle').textContent = 'Modifica Nota Generale';
+                    document.getElementById('sessionNoteId').value = id;
+                    document.getElementById('sessionNoteText').value = text;
+                } else {
+                    document.getElementById('sessionNoteModalTitle').textContent = 'Aggiungi Nota Generale';
+                    document.getElementById('sessionNoteId').value = '';
+                    document.getElementById('sessionNoteText').value = '';
+                }
+                document.getElementById('sessionNoteModal').classList.add('active');
+            }
+
+            function closeSessionNoteModal() {
+                document.getElementById('sessionNoteModal').classList.remove('active');
+            }
+
+            async function deleteSessionNote(id) {
+                if (!confirm('Sei sicuro di voler eliminare questa nota generale?')) return;
+
+                try {
+                    const resp = await fetch(`/api/session-notes/${id}`, { method: 'DELETE' });
+                    if (resp.ok) {
+                        location.reload();
+                    } else {
+                        alert('Errore durante l\'eliminazione');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Errore di rete');
+                }
+            }
+
+            document.getElementById('sessionNoteForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const id = document.getElementById('sessionNoteId').value;
+                const note = document.getElementById('sessionNoteText').value;
+                const sessionId = '{{ session.session_id }}';
+
+                try {
+                    let resp;
+                    if (id) {
+                        // Update
+                        resp = await fetch(`/api/session-notes/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ note })
+                        });
+                    } else {
+                        // Create
+                        resp = await fetch('/api/session-notes', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ session_id: sessionId, note })
+                        });
+                    }
+
+                    if (resp.ok) {
+                        location.reload();
+                    } else {
+                        alert('Errore durante il salvataggio');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('Errore di rete');
+                }
+            });
+        </script>
 </body>
 
 </html>

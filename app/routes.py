@@ -19,6 +19,7 @@ from app.services.system_prompt_service import SystemPromptService
 from app.services.ai_model_service import AIModelService
 from app.models.api_models import ChatMessage, ChatResponse, HealthCheck, SystemPromptCreate, SystemPromptUpdate
 from app.models.api_models import MessageNoteCreate, MessageNoteResponse, MessageNoteUpdate
+from app.models.api_models import SessionNoteCreate, SessionNoteResponse, SessionNoteUpdate
 from app.models.api_models import HumanTaskCreate, HumanTaskUpdate
 from app.database import get_db
 import json as json_lib
@@ -28,6 +29,7 @@ from concurrent.futures import ThreadPoolExecutor
 from app.services.unified_agent import unified_agent, AIError, ParsingError, ChatbotError
 from app.models.database_models import HumanTaskModel
 from app.models.database_models import MessageNoteModel
+from app.models.database_models import SessionNoteModel
 from app.models.lifecycle import LifecycleStage
 
 # Crea il router
@@ -269,6 +271,20 @@ async def session_conversation(session_id: str, request: Request):
             'message_count': len(messages)
         }
 
+        # Get session notes
+        async for db in get_db():
+            stmt_session_notes = select(SessionNoteModel).where(SessionNoteModel.session_id == session_data.id).order_by(SessionNoteModel.created_at.desc())
+            result_session_notes = await db.execute(stmt_session_notes)
+            session_notes = result_session_notes.scalars().all()
+
+            session_notes_data = [{
+                'id': n.id,
+                'note': n.note,
+                'created_by': n.created_by,
+                'created_at': n.created_at.strftime('%d/%m/%Y %H:%M'),
+                'updated_at': n.updated_at.strftime('%d/%m/%Y %H:%M')
+            } for n in session_notes]
+
         # Prepara i dati del template
         settings = get_settings()
 
@@ -278,7 +294,8 @@ async def session_conversation(session_id: str, request: Request):
                 "request": request,
                 "session": session_info,
                 "entries": entries if 'entries' in locals() else messages,
-                "app_version": settings.app_version
+                "app_version": settings.app_version,
+                "session_notes": session_notes_data
             }
         )
 
@@ -1083,7 +1100,7 @@ async def session_notes_dashboard(session_id: str, request: Request):
             if not session:
                 raise HTTPException(status_code=404, detail="Sessione non trovata")
 
-            # Get all notes for this session (via messages)
+            # Get all message notes for this session (via messages)
             from app.models.database_models import MessageNoteModel, MessageModel
             stmt_notes = select(MessageNoteModel).join(MessageModel).where(
                 MessageModel.session_id == session.id
@@ -1092,7 +1109,7 @@ async def session_notes_dashboard(session_id: str, request: Request):
             result_notes = await db.execute(stmt_notes)
             notes = result_notes.scalars().all()
 
-            # Prepare data
+            # Prepare message notes data
             notes_data = []
             for n in notes:
                 # Re-query with eager load
@@ -1109,14 +1126,29 @@ async def session_notes_dashboard(session_id: str, request: Request):
                     'message_preview': full_note.message.message if full_note.message else "Messaggio non trovato"
                 })
 
+            # Get session notes
+            stmt_session_notes = select(SessionNoteModel).where(SessionNoteModel.session_id == session.id).order_by(SessionNoteModel.created_at.desc())
+            result_session_notes = await db.execute(stmt_session_notes)
+            session_notes = result_session_notes.scalars().all()
+
+            session_notes_data = [{
+                'id': n.id,
+                'note': n.note,
+                'created_at': n.created_at.strftime('%d/%m/%Y %H:%M'),
+                'updated_at': n.updated_at.strftime('%d/%m/%Y %H:%M')
+            } for n in session_notes]
+
             session_info = {
                 'session_id': session.session_id,
+                'current_lifecycle': session.current_lifecycle.value,
+                'is_conversation_finished': session.is_conversation_finished
             }
 
         return templates.TemplateResponse('session_notes.html', {
             'request': request,
             'session': session_info,
-            'notes': notes_data
+            'notes': notes_data,
+            'session_notes': session_notes_data
         })
     except HTTPException:
         raise
@@ -1228,6 +1260,125 @@ async def delete_message_note(note_id: int):
     except Exception as e:
         from app.main import logger
         logger.error(f"Errore eliminazione nota {note_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Session Notes API ---
+
+@router.post("/api/session-notes", response_model=SessionNoteResponse)
+async def create_session_note(note: SessionNoteCreate):
+    """Crea una nuova nota generale per una sessione"""
+    try:
+        async for db in get_db():
+            # Trova la sessione
+            stmt = select(SessionModel).where(SessionModel.session_id == note.session_id)
+            result = await db.execute(stmt)
+            session = result.scalar_one_or_none()
+            if not session:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            new_note = SessionNoteModel(
+                session_id=session.id,
+                note=note.note
+            )
+            db.add(new_note)
+            await db.commit()
+            await db.refresh(new_note)
+            return SessionNoteResponse(
+                id=new_note.id,
+                session_id=new_note.session_id,
+                note=new_note.note,
+                created_at=new_note.created_at.isoformat(),
+                updated_at=new_note.updated_at.isoformat()
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore creazione nota sessione: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/session-notes")
+async def get_session_notes(session_id: str):
+    """Ottiene le note generali per una sessione"""
+    try:
+        async for db in get_db():
+            # Trova la sessione
+            stmt = select(SessionModel).where(SessionModel.session_id == session_id)
+            result = await db.execute(stmt)
+            session = result.scalar_one_or_none()
+            if not session:
+                raise HTTPException(status_code=404, detail="Sessione non trovata")
+
+            stmt_notes = select(SessionNoteModel).where(SessionNoteModel.session_id == session.id).order_by(SessionNoteModel.created_at.desc())
+            result_notes = await db.execute(stmt_notes)
+            notes = result_notes.scalars().all()
+
+            return [{
+                "id": n.id,
+                "session_id": n.session_id,
+                "note": n.note,
+                "created_at": n.created_at.isoformat(),
+                "updated_at": n.updated_at.isoformat()
+            } for n in notes]
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore recupero note sessione: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/api/session-notes/{note_id}", response_model=SessionNoteResponse)
+async def update_session_note(note_id: int, update: SessionNoteUpdate):
+    """Aggiorna una nota di sessione esistente"""
+    try:
+        async for db in get_db():
+            stmt = select(SessionNoteModel).where(SessionNoteModel.id == note_id)
+            result = await db.execute(stmt)
+            note = result.scalar_one_or_none()
+
+            if not note:
+                raise HTTPException(status_code=404, detail="Nota non trovata")
+
+            if update.note is not None:
+                note.note = update.note
+
+            await db.commit()
+            await db.refresh(note)
+            return SessionNoteResponse(
+                id=note.id,
+                session_id=note.session_id,
+                note=note.note,
+                created_at=note.created_at.isoformat(),
+                updated_at=note.updated_at.isoformat()
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore aggiornamento nota sessione {note_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/api/session-notes/{note_id}")
+async def delete_session_note(note_id: int):
+    """Elimina una nota di sessione"""
+    try:
+        async for db in get_db():
+            stmt = select(SessionNoteModel).where(SessionNoteModel.id == note_id)
+            result = await db.execute(stmt)
+            note = result.scalar_one_or_none()
+
+            if not note:
+                raise HTTPException(status_code=404, detail="Nota non trovata")
+
+            await db.delete(note)
+            await db.commit()
+            return {"message": "Nota eliminata"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.main import logger
+        logger.error(f"Errore eliminazione nota sessione {note_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

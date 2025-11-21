@@ -142,7 +142,6 @@ class SessionNoteModel(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     session_id: Mapped[int] = mapped_column(Integer, ForeignKey("sessions.id"), index=True)
     note: Mapped[str] = mapped_column(Text)
-    created_by: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
