@@ -1278,7 +1278,12 @@
                     closeSessionNoteModal();
                     alert('Nota salvata con successo');
                 } else {
-                    alert('Errore nel salvataggio della nota');
+                    try {
+                        const errorData = await response.json();
+                        alert(errorData.detail || 'Errore nel salvataggio della nota');
+                    } catch (e) {
+                        alert('Errore nel salvataggio della nota');
+                    }
                 }
             } catch (error) {
                 console.error('Errore nel salvataggio della nota di sessione:', error);

@@ -795,6 +795,9 @@ async def get_human_task(task_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+
+
 @router.get("/unified/health")
 async def unified_agent_health_check():
     """Endpoint per verificare lo stato dell'agente unificato"""
@@ -1267,7 +1270,7 @@ async def delete_message_note(note_id: int):
 
 @router.post("/api/session-notes", response_model=SessionNoteResponse)
 async def create_session_note(note: SessionNoteCreate):
-    """Crea una nuova nota generale per una sessione"""
+    """Crea una nuova nota per una sessione"""
     try:
         async for db in get_db():
             # Trova la sessione
@@ -1275,7 +1278,10 @@ async def create_session_note(note: SessionNoteCreate):
             result = await db.execute(stmt)
             session = result.scalar_one_or_none()
             if not session:
-                raise HTTPException(status_code=404, detail="Sessione non trovata")
+                raise HTTPException(
+                    status_code=404,
+                    detail="È necessario iniziare la conversazione prima di aggiungere una nota."
+                )
 
             new_note = SessionNoteModel(
                 session_id=session.id,
@@ -1298,6 +1304,7 @@ async def create_session_note(note: SessionNoteCreate):
         logger.error(f"Errore creazione nota sessione: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/api/session-notes")
 async def get_session_notes(session_id: str):
     """Ottiene le note generali per una sessione"""
@@ -1307,8 +1314,10 @@ async def get_session_notes(session_id: str):
             stmt = select(SessionModel).where(SessionModel.session_id == session_id)
             result = await db.execute(stmt)
             session = result.scalar_one_or_none()
+
             if not session:
-                raise HTTPException(status_code=404, detail="Sessione non trovata")
+                # Se la sessione non esiste, restituisci lista vuota invece di errore
+                return []
 
             stmt_notes = select(SessionNoteModel).where(SessionNoteModel.session_id == session.id).order_by(SessionNoteModel.created_at.desc())
             result_notes = await db.execute(stmt_notes)
