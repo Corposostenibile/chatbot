@@ -56,7 +56,7 @@ class UnifiedAgent:
             # Inizializza il client Google
             self.client = GoogleClient(
                 api_key=settings.google_ai_api_key,
-                model="gemini-flash-latest",
+                model="gemini-2.5-pro",
             )
 
             # Carica il prompt di sistema attivo dal database

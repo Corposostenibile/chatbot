@@ -534,7 +534,7 @@
                             {% endif %}
                             <span class="message-time">{{ entry.timestamp.strftime('%d/%m/%Y %H:%M:%S.%f') }}</span>
                         </div>
-                        <div class="message-text">{{ entry.message }}</div>
+                        <div class="message-text">{{ entry.message | replace('\n', '<br>') | safe }}</div>
                     </div>
                 </div>
                 {% endif %}

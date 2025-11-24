@@ -1063,7 +1063,11 @@
 
 
 
-        function escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/\n/g, '<br>');
+        }
         function getTimestamp() { return new Date().toLocaleTimeString('it-IT', { hour12: false }); }
 
         // Review modal functions
